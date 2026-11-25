@@ -48,6 +48,7 @@ final class AppModel: NSObject, UNUserNotificationCenterDelegate {
 
     func start() async {
         guard !started else { return }
+        Phones.country = Shared.country // before contacts are read
         Notify.setUp(delegate: self)
         NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.agent?.noteRouteChanged() }
@@ -166,7 +167,8 @@ final class AppModel: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: Onboarding
 
-    func startVerification(phone: String) async throws {
+    func startVerification(phone: String, country: String) async throws {
+        Shared.country = country
         try await directory.startVerification(phone: Phones.normalize(phone))
     }
 

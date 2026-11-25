@@ -14,6 +14,15 @@ enum Shared {
     static var token: String? { get { defaults.string(forKey: "token") } set { defaults.set(newValue, forKey: "token") } }
     static var myPhone: String? { get { defaults.string(forKey: "phone") } set { defaults.set(newValue, forKey: "phone") } }
     static var myName: String? { get { defaults.string(forKey: "name") } set { defaults.set(newValue, forKey: "name") } }
+    /// Country for numbers saved without a country code: chosen at sign-up, defaulting to the region setting.
+    static var country: String {
+        get { defaults.string(forKey: "country") ?? detectedCountry }
+        set { defaults.set(newValue, forKey: "country"); Phones.country = newValue }
+    }
+    static var detectedCountry: String {
+        let r = Locale.current.region?.identifier.uppercased() ?? ""
+        return Phones.byISO[r] != nil ? r : Phones.defaultCountry
+    }
     static var deviceId: String {
         if let id = defaults.string(forKey: "device_id") { return id }
         let id = "ios_" + UUID().uuidString.prefix(8).lowercased()

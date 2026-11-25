@@ -9,6 +9,6 @@ let package = Package(
     products: [.library(name: "RedtoothCore", targets: ["RedtoothCore"])],
     targets: [
         .target(name: "RedtoothCore"),
-        .testTarget(name: "RedtoothCoreTests", dependencies: ["RedtoothCore"], resources: [.copy("Resources/intent_fixtures.json")]),
+        .testTarget(name: "RedtoothCoreTests", dependencies: ["RedtoothCore"], resources: [.copy("Resources/intent_fixtures.json"), .copy("Resources/phone_fixtures.json")]),
     ]
 )

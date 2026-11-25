@@ -1,0 +1,1231 @@
+{
+ "cases": [
+  {
+   "raw": "(555) 014-2000",
+   "country": "US",
+   "e164": "+15550142000"
+  },
+  {
+   "raw": "555.014.2000",
+   "country": "CA",
+   "e164": "+15550142000"
+  },
+  {
+   "raw": "1 555 014 2000",
+   "country": "US",
+   "e164": "+15550142000"
+  },
+  {
+   "raw": "+1 (555) 014-2000",
+   "country": "GB",
+   "e164": "+15550142000"
+  },
+  {
+   "raw": "15550100",
+   "country": "US",
+   "e164": "+115550100"
+  },
+  {
+   "raw": "0049 30 1234567",
+   "country": "US",
+   "e164": "+49301234567"
+  },
+  {
+   "raw": "011 44 20 7946 0958",
+   "country": "US",
+   "e164": "+442079460958"
+  },
+  {
+   "raw": "+44 20 7946 0958",
+   "country": "US",
+   "e164": "+442079460958"
+  },
+  {
+   "raw": "020 7946 0958",
+   "country": "GB",
+   "e164": "+442079460958"
+  },
+  {
+   "raw": "07700 900123",
+   "country": "GB",
+   "e164": "+447700900123"
+  },
+  {
+   "raw": "44 7700 900123",
+   "country": "GB",
+   "e164": "+447700900123"
+  },
+  {
+   "raw": "00 1 555 014 2000",
+   "country": "GB",
+   "e164": "+15550142000"
+  },
+  {
+   "raw": "06 12 34 56 78",
+   "country": "FR",
+   "e164": "+33612345678"
+  },
+  {
+   "raw": "030 1234567",
+   "country": "DE",
+   "e164": "+49301234567"
+  },
+  {
+   "raw": "49 30 1234567",
+   "country": "DE",
+   "e164": "+49301234567"
+  },
+  {
+   "raw": "06 1234 5678",
+   "country": "IT",
+   "e164": "+390612345678"
+  },
+  {
+   "raw": "392 123 4567",
+   "country": "IT",
+   "e164": "+393921234567"
+  },
+  {
+   "raw": "612 34 56 78",
+   "country": "ES",
+   "e164": "+34612345678"
+  },
+  {
+   "raw": "8 (912) 345-67-89",
+   "country": "RU",
+   "e164": "+79123456789"
+  },
+  {
+   "raw": "810 49 30 1234567",
+   "country": "RU",
+   "e164": "+49301234567"
+  },
+  {
+   "raw": "06 1 234 5678",
+   "country": "HU",
+   "e164": "+3612345678"
+  },
+  {
+   "raw": "02 9876 5432",
+   "country": "AU",
+   "e164": "+61298765432"
+  },
+  {
+   "raw": "0011 1 555 014 2000",
+   "country": "AU",
+   "e164": "+15550142000"
+  },
+  {
+   "raw": "090-1234-5678",
+   "country": "JP",
+   "e164": "+819012345678"
+  },
+  {
+   "raw": "010 1 555 014 2000",
+   "country": "JP",
+   "e164": "+15550142000"
+  },
+  {
+   "raw": "010-1234-5678",
+   "country": "KR",
+   "e164": "+821012345678"
+  },
+  {
+   "raw": "98765 43210",
+   "country": "IN",
+   "e164": "+919876543210"
+  },
+  {
+   "raw": "0712 345678",
+   "country": "KE",
+   "e164": "+254712345678"
+  },
+  {
+   "raw": "000 44 20 7946 0958",
+   "country": "KE",
+   "e164": "+442079460958"
+  },
+  {
+   "raw": "55 1234 5678",
+   "country": "MX",
+   "e164": "+525512345678"
+  },
+  {
+   "raw": "9123 4567",
+   "country": "SG",
+   "e164": "+6591234567"
+  },
+  {
+   "raw": "0912 345 678",
+   "country": "TW",
+   "e164": "+886912345678"
+  },
+  {
+   "raw": "tel:+33612345678",
+   "country": "US",
+   "e164": "+33612345678"
+  },
+  {
+   "raw": "",
+   "country": "US",
+   "e164": ""
+  },
+  {
+   "raw": "n/a",
+   "country": "US",
+   "e164": ""
+  }
+ ],
+ "countries": [
+  {
+   "iso": "US",
+   "name": "United States",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "CA",
+   "name": "Canada",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "PR",
+   "name": "Puerto Rico",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "JM",
+   "name": "Jamaica",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "TT",
+   "name": "Trinidad and Tobago",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "BS",
+   "name": "Bahamas",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "BB",
+   "name": "Barbados",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "DO",
+   "name": "Dominican Republic",
+   "cc": "1",
+   "trunk": "1",
+   "idd": "011"
+  },
+  {
+   "iso": "MX",
+   "name": "Mexico",
+   "cc": "52",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "GT",
+   "name": "Guatemala",
+   "cc": "502",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "SV",
+   "name": "El Salvador",
+   "cc": "503",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "HN",
+   "name": "Honduras",
+   "cc": "504",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "NI",
+   "name": "Nicaragua",
+   "cc": "505",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "CR",
+   "name": "Costa Rica",
+   "cc": "506",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "PA",
+   "name": "Panama",
+   "cc": "507",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "CU",
+   "name": "Cuba",
+   "cc": "53",
+   "trunk": "0",
+   "idd": "119"
+  },
+  {
+   "iso": "HT",
+   "name": "Haiti",
+   "cc": "509",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "CO",
+   "name": "Colombia",
+   "cc": "57",
+   "trunk": "",
+   "idd": "009"
+  },
+  {
+   "iso": "VE",
+   "name": "Venezuela",
+   "cc": "58",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "EC",
+   "name": "Ecuador",
+   "cc": "593",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "PE",
+   "name": "Peru",
+   "cc": "51",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "BO",
+   "name": "Bolivia",
+   "cc": "591",
+   "trunk": "0",
+   "idd": "0010"
+  },
+  {
+   "iso": "BR",
+   "name": "Brazil",
+   "cc": "55",
+   "trunk": "0",
+   "idd": "0014"
+  },
+  {
+   "iso": "PY",
+   "name": "Paraguay",
+   "cc": "595",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "UY",
+   "name": "Uruguay",
+   "cc": "598",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AR",
+   "name": "Argentina",
+   "cc": "54",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "CL",
+   "name": "Chile",
+   "cc": "56",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "GB",
+   "name": "United Kingdom",
+   "cc": "44",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "IE",
+   "name": "Ireland",
+   "cc": "353",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "FR",
+   "name": "France",
+   "cc": "33",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "BE",
+   "name": "Belgium",
+   "cc": "32",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "NL",
+   "name": "Netherlands",
+   "cc": "31",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "LU",
+   "name": "Luxembourg",
+   "cc": "352",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "DE",
+   "name": "Germany",
+   "cc": "49",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AT",
+   "name": "Austria",
+   "cc": "43",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "CH",
+   "name": "Switzerland",
+   "cc": "41",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "IT",
+   "name": "Italy",
+   "cc": "39",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "SM",
+   "name": "San Marino",
+   "cc": "378",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "VA",
+   "name": "Vatican City",
+   "cc": "379",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "MT",
+   "name": "Malta",
+   "cc": "356",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "ES",
+   "name": "Spain",
+   "cc": "34",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "PT",
+   "name": "Portugal",
+   "cc": "351",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "AD",
+   "name": "Andorra",
+   "cc": "376",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "MC",
+   "name": "Monaco",
+   "cc": "377",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "DK",
+   "name": "Denmark",
+   "cc": "45",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "NO",
+   "name": "Norway",
+   "cc": "47",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "SE",
+   "name": "Sweden",
+   "cc": "46",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "FI",
+   "name": "Finland",
+   "cc": "358",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "IS",
+   "name": "Iceland",
+   "cc": "354",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "EE",
+   "name": "Estonia",
+   "cc": "372",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "LV",
+   "name": "Latvia",
+   "cc": "371",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "LT",
+   "name": "Lithuania",
+   "cc": "370",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "PL",
+   "name": "Poland",
+   "cc": "48",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "CZ",
+   "name": "Czechia",
+   "cc": "420",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "SK",
+   "name": "Slovakia",
+   "cc": "421",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "HU",
+   "name": "Hungary",
+   "cc": "36",
+   "trunk": "06",
+   "idd": "00"
+  },
+  {
+   "iso": "SI",
+   "name": "Slovenia",
+   "cc": "386",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "HR",
+   "name": "Croatia",
+   "cc": "385",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "BA",
+   "name": "Bosnia and Herzegovina",
+   "cc": "387",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "RS",
+   "name": "Serbia",
+   "cc": "381",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "ME",
+   "name": "Montenegro",
+   "cc": "382",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MK",
+   "name": "North Macedonia",
+   "cc": "389",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AL",
+   "name": "Albania",
+   "cc": "355",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "XK",
+   "name": "Kosovo",
+   "cc": "383",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "GR",
+   "name": "Greece",
+   "cc": "30",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "CY",
+   "name": "Cyprus",
+   "cc": "357",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "BG",
+   "name": "Bulgaria",
+   "cc": "359",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "RO",
+   "name": "Romania",
+   "cc": "40",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MD",
+   "name": "Moldova",
+   "cc": "373",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "UA",
+   "name": "Ukraine",
+   "cc": "380",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "BY",
+   "name": "Belarus",
+   "cc": "375",
+   "trunk": "8",
+   "idd": "810"
+  },
+  {
+   "iso": "RU",
+   "name": "Russia",
+   "cc": "7",
+   "trunk": "8",
+   "idd": "810"
+  },
+  {
+   "iso": "KZ",
+   "name": "Kazakhstan",
+   "cc": "7",
+   "trunk": "8",
+   "idd": "810"
+  },
+  {
+   "iso": "GE",
+   "name": "Georgia",
+   "cc": "995",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AM",
+   "name": "Armenia",
+   "cc": "374",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AZ",
+   "name": "Azerbaijan",
+   "cc": "994",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "TR",
+   "name": "Turkey",
+   "cc": "90",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "IL",
+   "name": "Israel",
+   "cc": "972",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "PS",
+   "name": "Palestine",
+   "cc": "970",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "LB",
+   "name": "Lebanon",
+   "cc": "961",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "JO",
+   "name": "Jordan",
+   "cc": "962",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "SY",
+   "name": "Syria",
+   "cc": "963",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "IQ",
+   "name": "Iraq",
+   "cc": "964",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "IR",
+   "name": "Iran",
+   "cc": "98",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "SA",
+   "name": "Saudi Arabia",
+   "cc": "966",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AE",
+   "name": "United Arab Emirates",
+   "cc": "971",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "QA",
+   "name": "Qatar",
+   "cc": "974",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "BH",
+   "name": "Bahrain",
+   "cc": "973",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "KW",
+   "name": "Kuwait",
+   "cc": "965",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "OM",
+   "name": "Oman",
+   "cc": "968",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "YE",
+   "name": "Yemen",
+   "cc": "967",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "EG",
+   "name": "Egypt",
+   "cc": "20",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MA",
+   "name": "Morocco",
+   "cc": "212",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "DZ",
+   "name": "Algeria",
+   "cc": "213",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "TN",
+   "name": "Tunisia",
+   "cc": "216",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "LY",
+   "name": "Libya",
+   "cc": "218",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "NG",
+   "name": "Nigeria",
+   "cc": "234",
+   "trunk": "0",
+   "idd": "009"
+  },
+  {
+   "iso": "GH",
+   "name": "Ghana",
+   "cc": "233",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "SN",
+   "name": "Senegal",
+   "cc": "221",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "CI",
+   "name": "Côte d’Ivoire",
+   "cc": "225",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "CM",
+   "name": "Cameroon",
+   "cc": "237",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "KE",
+   "name": "Kenya",
+   "cc": "254",
+   "trunk": "0",
+   "idd": "000"
+  },
+  {
+   "iso": "UG",
+   "name": "Uganda",
+   "cc": "256",
+   "trunk": "0",
+   "idd": "000"
+  },
+  {
+   "iso": "TZ",
+   "name": "Tanzania",
+   "cc": "255",
+   "trunk": "0",
+   "idd": "000"
+  },
+  {
+   "iso": "RW",
+   "name": "Rwanda",
+   "cc": "250",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "ET",
+   "name": "Ethiopia",
+   "cc": "251",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "SO",
+   "name": "Somalia",
+   "cc": "252",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "SD",
+   "name": "Sudan",
+   "cc": "249",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "CD",
+   "name": "DR Congo",
+   "cc": "243",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AO",
+   "name": "Angola",
+   "cc": "244",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "ZM",
+   "name": "Zambia",
+   "cc": "260",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "ZW",
+   "name": "Zimbabwe",
+   "cc": "263",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MZ",
+   "name": "Mozambique",
+   "cc": "258",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "NA",
+   "name": "Namibia",
+   "cc": "264",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "BW",
+   "name": "Botswana",
+   "cc": "267",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "ZA",
+   "name": "South Africa",
+   "cc": "27",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MU",
+   "name": "Mauritius",
+   "cc": "230",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "MG",
+   "name": "Madagascar",
+   "cc": "261",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "PK",
+   "name": "Pakistan",
+   "cc": "92",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "AF",
+   "name": "Afghanistan",
+   "cc": "93",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "IN",
+   "name": "India",
+   "cc": "91",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "BD",
+   "name": "Bangladesh",
+   "cc": "880",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "LK",
+   "name": "Sri Lanka",
+   "cc": "94",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "NP",
+   "name": "Nepal",
+   "cc": "977",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MV",
+   "name": "Maldives",
+   "cc": "960",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "UZ",
+   "name": "Uzbekistan",
+   "cc": "998",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "KG",
+   "name": "Kyrgyzstan",
+   "cc": "996",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "TJ",
+   "name": "Tajikistan",
+   "cc": "992",
+   "trunk": "",
+   "idd": "810"
+  },
+  {
+   "iso": "TM",
+   "name": "Turkmenistan",
+   "cc": "993",
+   "trunk": "8",
+   "idd": "810"
+  },
+  {
+   "iso": "MN",
+   "name": "Mongolia",
+   "cc": "976",
+   "trunk": "0",
+   "idd": "001"
+  },
+  {
+   "iso": "CN",
+   "name": "China",
+   "cc": "86",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "HK",
+   "name": "Hong Kong",
+   "cc": "852",
+   "trunk": "",
+   "idd": "001"
+  },
+  {
+   "iso": "MO",
+   "name": "Macau",
+   "cc": "853",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "TW",
+   "name": "Taiwan",
+   "cc": "886",
+   "trunk": "0",
+   "idd": "002"
+  },
+  {
+   "iso": "JP",
+   "name": "Japan",
+   "cc": "81",
+   "trunk": "0",
+   "idd": "010"
+  },
+  {
+   "iso": "KR",
+   "name": "South Korea",
+   "cc": "82",
+   "trunk": "0",
+   "idd": "001"
+  },
+  {
+   "iso": "VN",
+   "name": "Vietnam",
+   "cc": "84",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "TH",
+   "name": "Thailand",
+   "cc": "66",
+   "trunk": "0",
+   "idd": "001"
+  },
+  {
+   "iso": "KH",
+   "name": "Cambodia",
+   "cc": "855",
+   "trunk": "0",
+   "idd": "001"
+  },
+  {
+   "iso": "LA",
+   "name": "Laos",
+   "cc": "856",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MM",
+   "name": "Myanmar",
+   "cc": "95",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "MY",
+   "name": "Malaysia",
+   "cc": "60",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "SG",
+   "name": "Singapore",
+   "cc": "65",
+   "trunk": "",
+   "idd": "001"
+  },
+  {
+   "iso": "ID",
+   "name": "Indonesia",
+   "cc": "62",
+   "trunk": "0",
+   "idd": "001"
+  },
+  {
+   "iso": "PH",
+   "name": "Philippines",
+   "cc": "63",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "BN",
+   "name": "Brunei",
+   "cc": "673",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "AU",
+   "name": "Australia",
+   "cc": "61",
+   "trunk": "0",
+   "idd": "0011"
+  },
+  {
+   "iso": "NZ",
+   "name": "New Zealand",
+   "cc": "64",
+   "trunk": "0",
+   "idd": "00"
+  },
+  {
+   "iso": "FJ",
+   "name": "Fiji",
+   "cc": "679",
+   "trunk": "",
+   "idd": "00"
+  },
+  {
+   "iso": "PG",
+   "name": "Papua New Guinea",
+   "cc": "675",
+   "trunk": "",
+   "idd": "00"
+  }
+ ]
+}

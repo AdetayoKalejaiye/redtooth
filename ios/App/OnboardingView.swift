@@ -10,6 +10,7 @@ struct OnboardingView: View {
     @State private var sent = false
     @State private var error: String?
     @State private var server = Shared.directoryURL
+    @State private var country = Shared.country
 
     var body: some View {
         NavigationStack {
@@ -20,7 +21,19 @@ struct OnboardingView: View {
                 }
                 Section("You") {
                     TextField("Name", text: $name).textContentType(.name)
-                    TextField("Phone number", text: $phone).keyboardType(.phonePad).textContentType(.telephoneNumber)
+                    Picker("Country", selection: $country) {
+                        ForEach(countries.sorted { $0.name < $1.name }, id: \.iso) { c in
+                            Text("\(Phones.flag(c.iso)) \(c.name) (+\(c.cc))").tag(c.iso)
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                    LabeledContent {
+                        TextField("Phone number", text: $phone).keyboardType(.phonePad).textContentType(.telephoneNumber)
+                    } label: {
+                        if !phone.hasPrefix("+") { Text("+\(Phones.byISO[country]?.cc ?? "1")").foregroundStyle(.secondary) }
+                    }
+                    Text("Contacts saved without a country code are read as \(Phones.byISO[country]?.name ?? country).")
+                        .font(.footnote).foregroundStyle(.secondary)
                     if sent { TextField("Code from the text message", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode) }
                 }
                 if let error { Text(error).foregroundStyle(.red) }
@@ -41,7 +54,7 @@ struct OnboardingView: View {
         error = nil
         model.setDirectory(server)
         do {
-            if !sent { try await model.startVerification(phone: phone); sent = true }
+            if !sent { try await model.startVerification(phone: phone, country: country); sent = true }
             else { try await model.finishVerification(phone: phone, code: code, name: name) }
         } catch { self.error = "That didn't work: \(error.localizedDescription)" }
     }

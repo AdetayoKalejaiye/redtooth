@@ -59,6 +59,19 @@ final class PhonesTests: XCTestCase {
         }
     }
 
+    func testCountryRulesMatchDesktop() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "phone_fixtures", withExtension: "json"))
+        let fx = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? JSONObject)
+        var bad: [String] = []
+        for case let c as JSONObject in fx.arr("cases") ?? [] {
+            let got = Phones.normalize(c.str("raw")!, country: c.str("country"))
+            if got != c.str("e164") { bad.append("\(c.str("raw")!) (\(c.str("country")!)): \(got) != \(c.str("e164")!)") }
+        }
+        XCTAssertEqual(bad, [])
+        let table = (fx.arr("countries") ?? []).compactMap { $0 as? JSONObject }.map { [$0.str("iso")!, $0.str("cc")!, $0.str("trunk")!, $0.str("idd")!] }
+        XCTAssertEqual(countries.map { [$0.iso, $0.cc, $0.trunk, $0.idd] }, table)
+    }
+
     func testDifflibRatio() { XCTAssertEqual((PeopleResolver.ratio("daniel", "danielle") * 1000).rounded(), 857) }
 }
 

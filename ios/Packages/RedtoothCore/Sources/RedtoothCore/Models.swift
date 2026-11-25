@@ -160,21 +160,41 @@ public struct Reply: @unchecked Sendable {
     }
 }
 
+/// Same rules as redtooth/phones.py: E.164 everywhere; the country only matters for numbers written without one.
 public enum Phones {
-    /// E.164-style normalization, identical to the desktop's normalize_phone.
-    public static func normalize(_ raw: String, defaultCC: String = "1") -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespaces)
-        if trimmed.isEmpty { return "" }
-        let digits = trimmed.filter(\.isASCIIDigitChar)
-        if trimmed.hasPrefix("+") { return "+" + digits }
-        if digits.hasPrefix("00") { return "+" + digits.dropFirst(2) }
-        if digits.count == 10 && defaultCC == "1" { return "+1" + digits }
-        if digits.count == 11 && digits.hasPrefix("1") && defaultCC == "1" { return "+" + digits }
-        return "+" + defaultCC + digits
+    public static let defaultCountry = "US"
+    public static let byISO: [String: Country] = Dictionary(countries.map { ($0.iso, $0) }, uniquingKeysWith: { a, _ in a })
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var _country = defaultCountry
+
+    /// The user's country (the app sets it from the region at start-up, or the choice made at sign-up).
+    public static var country: String {
+        get { lock.lock(); defer { lock.unlock() }; return _country }
+        set { let v = newValue.uppercased(); guard byISO[v] != nil else { return }; lock.lock(); _country = v; lock.unlock() }
+    }
+
+    public static func normalize(_ raw: String, country: String? = nil) -> String {
+        let c = byISO[(country ?? self.country).uppercased()] ?? byISO[defaultCountry]!
+        guard let start = raw.firstIndex(where: { $0 == "+" || $0.isASCIIDigitChar }) else { return "" } // skip "tel:"
+        let s = raw[start...]
+        let digits = String(s.filter(\.isASCIIDigitChar))
+        if digits.isEmpty { return "" }
+        if s.hasPrefix("+") { return "+" + digits }
+        for idd in [c.idd, "00"] where !idd.isEmpty && digits.hasPrefix(idd) && digits.count > idd.count + 6 {
+            return "+" + digits.dropFirst(idd.count)
+        }
+        if c.cc == "1" { return digits.count == 11 && digits.hasPrefix("1") ? "+" + digits : "+1" + digits }
+        if !c.trunk.isEmpty && digits.hasPrefix(c.trunk) { return "+" + c.cc + digits.dropFirst(c.trunk.count) }
+        if !c.trunk.isEmpty && digits.hasPrefix(c.cc) && digits.count >= c.cc.count + 8 { return "+" + digits }
+        return "+" + c.cc + digits
     }
 
     /// Contact discovery sends these hashes, never raw numbers.
     public static func hash(_ phone: String) -> String { sha256Hex(Data(("redtooth:" + normalize(phone)).utf8)) }
+
+    public static func flag(_ iso: String) -> String {
+        iso.uppercased().unicodeScalars.compactMap { Unicode.Scalar(0x1F1E6 + $0.value - 65) }.map(String.init).joined()
+    }
 }
 
 extension Character {
