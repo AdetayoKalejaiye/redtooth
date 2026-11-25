@@ -63,7 +63,12 @@ def lan_addresses() -> list[str]:
                 addrs.add(ip)
     except OSError:
         pass
-    return sorted(addrs)
+    def rank(ip: str) -> tuple:
+        o = [int(x) for x in ip.split(".")] if ip.count(".") == 3 else [0, 0, 0, 0]
+        private = o[0] == 192 and o[1] == 168 or o[0] == 10 or (o[0] == 172 and 16 <= o[1] <= 31)
+        return (not private, o[0] != 192, ip)  # home Wi-Fi (192.168.x) first, VPN/odd ranges last
+
+    return sorted(addrs, key=rank)
 
 
 def open_panel(url: str, view: Optional[str] = None) -> None:
@@ -519,41 +524,103 @@ def cmd_install(args) -> None:
         print("Added 'Send with Redtooth' to Open With and the Files (Nautilus) Scripts menu, plus a Redtooth app launcher.")
 
 
+def _port_busy_message(port: int) -> str:
+    from . import desktop
+
+    who = desktop.pids_on_port(port)
+    detail = "".join(f"\n  PID {pid}: {cmd[:100]}" for pid, cmd in who)
+    return (f"Port {port} is already in use by another program{detail or ''}.\n"
+            "It's usually an older Redtooth window that's still open: press Ctrl+C in it (or run `redtooth stop`), then try again.")
+
+
 def run_serve(args) -> None:
     from . import desktop
 
     url = f"http://127.0.0.1:{args.port}/"
-    if desktop.is_running(args.port):
+    state = desktop.port_state(args.port)
+    if state == "ours":
         print(f"Redtooth is already running: {url}")
         open_panel(url)
         return
+    if state == "other":
+        msg = _port_busy_message(args.port)
+        if args.background:
+            desktop.message_box("Redtooth can't start", msg)
+        sys.exit(msg)
+    log_path = HOME / "redtooth.log"
     if args.no_tray or not desktop.tray_available():
         asyncio.run(cmd_serve(args))
         return
     if not args.background:
-        print(f"Redtooth is running in the system tray (panel: {url}). Close this window or press Ctrl+C to quit.", flush=True)
-    desktop.run_with_tray(lambda set_status: asyncio.run(cmd_serve(args, set_status)), url, HOME, open_at_start=args.open or not args.background)
+        print(f"Redtooth panel: {url}\nThere's also a Redtooth icon in the system tray. Keep this window open, or use `redtooth start` to run without it.", flush=True)
+    desktop.run_with_tray(lambda set_status: asyncio.run(cmd_serve(args, set_status)), url, HOME, open_at_start=args.open, log_path=log_path)
 
 
 def cmd_start(args) -> None:
+    """Run Redtooth with no console window, and wait until it actually answers (or say why it didn't)."""
     from . import desktop
 
     url = f"http://127.0.0.1:{args.port}/"
-    if desktop.is_running(args.port):
+    state = desktop.port_state(args.port)
+    if state == "ours":
+        print(f"Redtooth is already running. Opening {url}")
         open_panel(url)
         return
+    if state == "other":
+        sys.exit(_port_busy_message(args.port))
     if not load_config().get("phone"):
         sys.exit("Run `redtooth setup` first.")
-    desktop.start_detached(desktop.background_command(("--open",)))
-    print("Redtooth is starting in the system tray. The panel opens in a moment.")
+    log_path = HOME / "redtooth.log"
+    HOME.mkdir(parents=True, exist_ok=True)
+    start = log_path.stat().st_size if log_path.exists() else 0
+    proc = desktop.start_detached(desktop.background_command(("--open", "--port", str(args.port))), log_path)
+    print("Starting Redtooth", end="", flush=True)
+    for i in range(180):  # first start downloads the search model, so allow a few minutes
+        time.sleep(1)
+        if desktop.port_state(args.port) == "ours":
+            print(f"\nRedtooth is running: {url} (opening in your browser). It also has an icon in the system tray.")
+            return
+        if proc.poll() is not None:
+            tail = log_path.read_text(encoding="utf-8", errors="replace")[start:].strip().splitlines()[-25:] if log_path.exists() else []
+            print("\nRedtooth stopped while starting. Last lines of its log:\n  " + "\n  ".join(tail or ["(empty)"]))
+            print(f"Full log: {log_path}\nTo see it run in this window instead: redtooth serve --open")
+            sys.exit(1)
+        if i % 3 == 2:
+            print(".", end="", flush=True)
+        if i == 20:
+            print(f" (still starting; the first run downloads the search model. Progress: {log_path})", end="", flush=True)
+    print(f"\nIt's taking unusually long. Check {log_path}, or run `redtooth serve --open` to watch it start.")
+
+
+def cmd_stop(args) -> None:
+    from . import desktop
+
+    state = desktop.port_state(args.port)
+    if state == "ours":
+        try:
+            post(args.port, "/api/quit", {})
+        except Exception:
+            pass
+        print("Redtooth stopped.")
+        return
+    stopped = False
+    for pid, cmd in desktop.pids_on_port(args.port):
+        if "redtooth" in cmd.lower():
+            import psutil
+
+            psutil.Process(pid).terminate()
+            print(f"Stopped an older Redtooth (PID {pid}).")
+            stopped = True
+    if not stopped:
+        print("Redtooth isn't running." if state == "free" else _port_busy_message(args.port))
 
 
 def main(argv=None) -> None:
-    if sys.stdout is None or sys.stderr is None:  # pythonw: no console, so log to a file
+    if "--background" in (sys.argv[1:] if argv is None else argv) or sys.stdout is None or sys.stderr is None:
+        # No console (pythonw): everything goes to the log file so nothing fails silently.
         HOME.mkdir(parents=True, exist_ok=True)
-        log = open(HOME / "redtooth.log", "a", buffering=1, encoding="utf-8")
-        sys.stdout = sys.stdout or log
-        sys.stderr = sys.stderr or log
+        _log = open(HOME / "redtooth.log", "a", buffering=1, encoding="utf-8")
+        sys.stdout = sys.stderr = _log
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["eval"]:
@@ -578,6 +645,8 @@ def main(argv=None) -> None:
     p.add_argument("--no-tray", action="store_true", help="run in this terminal without a tray icon")
     p.add_argument("--background", action="store_true", help=argparse.SUPPRESS)
     p = sub.add_parser("start", help="start Redtooth in the background (tray icon) and open its panel")
+    p.add_argument("--port", type=int, default=DEFAULT_PORT)
+    p = sub.add_parser("stop", help="stop a running Redtooth (including an older version holding the port)")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p = sub.add_parser("setup")
     p.add_argument("--name")
@@ -617,6 +686,8 @@ def main(argv=None) -> None:
         run_serve(args)
     elif args.cmd == "start":
         cmd_start(args)
+    elif args.cmd == "stop":
+        cmd_stop(args)
     elif args.cmd == "setup":
         asyncio.run(cmd_setup(args))
     elif args.cmd == "directory":

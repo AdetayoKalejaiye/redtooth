@@ -110,6 +110,11 @@ def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, ext
         ok = bool(broker and broker.resolve(request.match_info["oid"], bool(b.get("accept"))))
         return web.json_response({"ok": ok})
 
+    @r.post("/api/quit")
+    async def quit_(request):
+        asyncio.get_running_loop().call_later(0.3, os._exit, 0)
+        return web.json_response({"ok": True})
+
     @r.post("/api/navigate")
     async def navigate(request):
         """The tray menu asks the open panel to show a view."""
