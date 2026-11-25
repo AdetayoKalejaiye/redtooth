@@ -87,6 +87,9 @@ def default_roots() -> list[Path]:
     return [p for p in (home / "Documents", home / "Desktop", home / "Downloads") if p.exists()]
 
 
+STOP = {"the", "and", "for", "about", "with", "from", "that", "this", "file", "doc", "document", "deck", "my", "our", "your"}
+
+
 def _safe(t) -> str:
     t = t if isinstance(t, str) else ("" if t is None else str(t))
     return t.encode("utf-8", "replace").decode("utf-8")
@@ -517,6 +520,14 @@ class FileIndex:
             # Only let meaning matches count when they clear the floor and are close to the best one.
             if sem_sim[fid] >= P["min_sim"] and (sem_sim[fid] >= best_sim - P["band"] or r < 2):
                 scores[fid] = scores.get(fid, 0) + P["w_sem"] / (RRF_K + r + 1)
+        # Files that keyword search alone missed but whose *name* covers the request ("termpaper", "TermPaper_v2").
+        qws = [w for w in (x.lower() for x in re.findall(r"\w+", text)) if len(w) >= 3 and w not in STOP]
+        compact_q = "".join(qws)
+        if len(qws) >= 2 and len(compact_q) >= 6:
+            with self.lock:
+                for (fid,) in self.db.execute(f"SELECT id FROM files WHERE replace(replace(replace(lower(name),' ',''),'_',''),'-','') LIKE ?"
+                                              + ("".join(" AND " + w for w in where)), (f"%{compact_q}%", *args)).fetchall():
+                    scores.setdefault(fid, 0.0)
         codes = [t.lower() for t in re.findall(r"\b[A-Za-z]+-?\d+[\w\-]*\b", text)]
         with self.lock:
             cand = {r[0]: self._hit(r) for r in self.db.execute(
@@ -528,11 +539,11 @@ class FileIndex:
             nm = cand[fid].name.lower()
             if codes and any(c in nm or c.replace("-", "") in nm.replace("-", "") for c in codes):
                 scores[fid] += 0.05  # exact project code in the name
-            qwords = {w.lower() for w in re.findall(r"\w{3,}", text)}
-            if qwords:
-                nwords = set(re.findall(r"\w+", name_words(nm).lower()))
-                scores[fid] += 0.015 * len(qwords & nwords) / len(qwords)  # name says what was asked
-        ranked = sorted(scores.items(), key=lambda x: -x[1])[:limit]
+            scores[fid] += self._coverage_bonus(qws, compact_q, nm, kw_chunk.get(fid, ("", ""))[1])
+            # Newer files win ties: a small prior that halves every ~6 weeks (never outweighs a better match).
+            age_days = max(0.0, (time.time() - cand[fid].mtime) / 86400)
+            scores[fid] += P.get("w_recent", 0.006) * 0.5 ** (age_days / 42)
+        ranked = sorted(scores.items(), key=lambda x: (-x[1], -cand[x[0]].mtime))[:limit]
         top = ranked[0][1] if ranked else 1.0
         ranked = [(fid, s) for fid, s in ranked if s / top >= P["rel_cut"]]
         out = []
@@ -548,6 +559,32 @@ class FileIndex:
             h.snippet = self._snip(txt or "", text)
             out.append(h)
         return out
+
+    @staticmethod
+    def _coverage_bonus(qws: list[str], compact_q: str, name: str, chunk: str) -> float:
+        """How much of the request a file actually covers. "term paper" should beat a file that only says
+        "term" (mid_Term_report) or only "paper" (graphpaper): every word in the name counts most, then
+        every word in the matching passage, then the words together as a phrase."""
+        if not qws:
+            return 0.0
+
+        def stem(w: str) -> str:
+            return w[:-1] if len(w) > 4 and w.endswith("s") else w
+
+        nwords = {stem(w) for w in re.findall(r"\w+", name_words(name).lower())}
+        compact_name = re.sub(r"[\s_\-.]+", "", name.lower())
+        want = [stem(w) for w in qws]
+        in_name = sum(1 for w in want if w in nwords) / len(want)
+        if len(qws) >= 2 and compact_q in compact_name:
+            in_name = 1.0  # "termpaper", "TermPaper"
+        text = chunk.lower()
+        twords = {stem(w) for w in re.findall(r"\w+", text)}
+        in_text = sum(1 for w in want if w in twords) / len(want) if text else 0.0
+        phrase = len(qws) >= 2 and (" ".join(qws) in name_words(name).lower() or " ".join(qws) in re.sub(r"\s+", " ", text))
+        bonus = 0.015 * in_name + (0.03 if in_name == 1.0 and len(qws) >= 2 else 0.0)
+        bonus += 0.008 * in_text + (0.006 if in_text == 1.0 and len(qws) >= 2 else 0.0)
+        bonus += 0.01 if phrase else 0.0
+        return bonus
 
     def _chunk(self, cid: Optional[int]) -> tuple[str, str]:
         if cid is None:

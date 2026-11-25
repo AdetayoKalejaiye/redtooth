@@ -106,3 +106,33 @@ def test_embedder_input_is_cleaned():
     from redtooth.files.embed import _clean
 
     assert _clean("caf\udce9 deck") == "caf? deck" and _clean(None) == "" and _clean(3) == "3"
+
+
+def test_term_paper_beats_partial_matches_and_newest_wins(tmp_path):
+    """The user's case: "send my term paper to my phone" offered mid_Term_report, a DocuSign PDF and graphpaper."""
+    import time
+
+    from redtooth.files.embed import HashEmbedder
+    from redtooth.intent import parse
+
+    ix = FileIndex(tmp_path / "ix.db", HashEmbedder())
+    day = 86400
+    now = time.time()
+    docs = [
+        ("mid_Term_report.docx", "Midterm progress report for the capstone project.", now - 230 * day),
+        ("DocuSign_d9a0e750-3935-4204-bdb8-d20bf0963acd.pdf", "Page 26: these terms survive termination. Paper copies on request.", now - 99 * day),
+        ("graphpaper.pdf", "Printable grid.", now - 77 * day),
+        ("Term paper draft.docx", "Draft: the economic effects of the transcontinental railroad.", now - 55 * day),
+        ("HIST 201 Term Paper - final.docx", "The economic effects of the transcontinental railroad.", now - 2 * day),
+    ]
+    for name, text, mtime in docs:
+        p = tmp_path / name
+        p.write_text(text)
+        os.utime(p, (mtime, mtime))
+        chunks = [("Page 1", text)]
+        ix.write_file(str(p), len(text), mtime, f"{len(text)}:{mtime}", chunks, ix.embed_many([(name, chunks)])[0])
+    ix.commit()
+    fq = parse("Send my term paper to my phone").file
+    names = [h.name for h in ix.search(fq)]
+    assert names[:2] == ["HIST 201 Term Paper - final.docx", "Term paper draft.docx"], names
+    assert ix.search("termpaper")[0].name == "HIST 201 Term Paper - final.docx"
