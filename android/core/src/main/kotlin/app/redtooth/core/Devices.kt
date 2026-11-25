@@ -6,7 +6,7 @@ package app.redtooth.core
  * Outcomes: known (connect), confirm ("Are Daniel's the Sony XM5s?"), choose, pairing_mode.
  */
 
-data class AudioOutput(val name: String, val address: String? = null, val transport: String = "builtin")
+data class AudioOutput(val name: String, val address: String? = null, val transport: String = "builtin", val known: Boolean = true)
 
 /** What the platform can do with Bluetooth. Android implements this; tests use a fake. */
 interface BluetoothPort {
@@ -18,16 +18,29 @@ interface BluetoothPort {
     fun audioOutput(): AudioOutput
     fun setAudioOutput(dev: Device): Boolean
 
+    /** On/off/missing/unknown. */
+    fun radioState(): String = "on"
+
+    /** Is this output that device? By address when both have one; otherwise the device's name must equal the
+     *  output name or the part in brackets ("Headphones (WH-CH720N)"). Same rule as the desktop. */
     fun outputMatches(out: AudioOutput, dev: Device): Boolean {
+        if (!out.known) return false
         if (out.address != null && dev.address != null) return normAddr(out.address) == normAddr(dev.address)
-        return out.name.isNotEmpty() && (dev.name.contains(out.name, true) || out.name.contains(dev.name, true))
+        if (out.transport !in setOf("bluetooth", "other", "airplay")) return false
+        val name = out.name.trim().lowercase()
+        val inner = Regex("\\(([^()]+)\\)\\s*$").find(out.name)?.groupValues?.get(1)?.trim()?.lowercase() ?: ""
+        val names = listOfNotNull(dev.name, dev.model, dev.alias).map { it.trim().lowercase() }.toSet()
+        return name in names || (inner.isNotEmpty() && (inner in names || inner.removeSuffix(" stereo").removeSuffix(" hands-free ag audio") in names))
     }
 
-    fun verifyAudioOutput(dev: Device, timeoutMs: Long = 6000): Boolean {
+    /** true = confirmed, false = audio is elsewhere, null = the output can't be read here. */
+    fun verifyAudioOutput(dev: Device, timeoutMs: Long = 6000): Boolean? {
         val deadline = System.currentTimeMillis() + timeoutMs
         var switched = false
         while (System.currentTimeMillis() < deadline) {
-            if (outputMatches(audioOutput(), dev)) return true
+            val out = audioOutput()
+            if (!out.known) return null
+            if (outputMatches(out, dev)) return true
             if (!switched) { switched = true; runCatching { setAudioOutput(dev) } }
             Thread.sleep(300)
         }
@@ -105,7 +118,7 @@ fun hintOk(d: Device, hint: String?): Boolean {
 
 class DeviceResolver(private val bt: BluetoothPort, private val store: RememberedStore, private val me: Person, private val scanSeconds: Double = 4.0) {
     data class Survey(var remembered: List<Device> = emptyList(), var registered: List<Device> = emptyList(), var paired: List<Device> = emptyList(), var nearby: List<Device> = emptyList())
-    data class Outcome(val kind: String, val device: Device? = null, val candidates: List<Device> = emptyList(), val verified: Boolean = false, val reason: String = "", val ms: Double = 0.0)
+    data class Outcome(val kind: String, val device: Device? = null, val candidates: List<Device> = emptyList(), val verified: Boolean? = false, val reason: String = "", val ms: Double = 0.0)
 
     private fun ownerPhone(o: Person) = if (o.isSelf) me.phone else o.phone
     private fun same(a: Device, b: Device) = a.id == b.id || (a.address != null && normAddr(a.address) == normAddr(b.address))
@@ -163,7 +176,7 @@ class DeviceResolver(private val bt: BluetoothPort, private val store: Remembere
         if (!dev.paired) { if (!bt.pair(dev)) return Outcome("failed", dev, reason = "pair"); dev.paired = true }
         if (!bt.connect(dev)) return Outcome("failed", dev, reason = "connect")
         dev.connected = true
-        val verified = if (dev.kind in AUDIO_KINDS) bt.verifyAudioOutput(dev) else true
+        val verified: Boolean? = if (dev.kind in AUDIO_KINDS) bt.verifyAudioOutput(dev) else true
         store.remember(dev, ownerPhone(owner), owner.name)
         return Outcome("connected", dev, verified = verified, ms = (System.nanoTime() - t0) / 1e6)
     }

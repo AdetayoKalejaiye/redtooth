@@ -40,7 +40,7 @@ object CoreSuite {
     fun runAll(): Int {
         failures.clear(); passed = 0; skipped = 0
         println("Redtooth core")
-        json(); phones(); countries(); intents(); people(); agentFlows(); transfers(); interop()
+        json(); phones(); countries(); ranking(); intents(); people(); agentFlows(); transfers(); interop()
         println("\n$passed passed, ${failures.size} failed, $skipped skipped")
         failures.forEach { println("FAIL $it") }
         return failures.size
@@ -76,6 +76,51 @@ object CoreSuite {
         check("country table matches the desktop") {
             val table = fx.list("countries")!!.map { it as Map<String, Any?> }
             eq(COUNTRIES.map { listOf(it.iso, it.cc, it.trunk, it.idd) }, table.map { listOf(it.str("iso"), it.str("cc"), it.str("trunk"), it.str("idd")) })
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun ranking() {
+        val text = javaClass.getResourceAsStream("/ranking_fixtures.json")?.bufferedReader()?.readText()
+            ?: File("src/test/resources/ranking_fixtures.json").takeIf { it.exists() }?.readText()
+            ?: File("android/core/src/test/resources/ranking_fixtures.json").readText()
+        val fx = Json.obj(text)
+        val now = java.time.Instant.ofEpochSecond((fx["now"] as Number).toLong()).atZone(java.time.ZoneOffset.UTC)
+        fun hits(l: Any?) = (l as List<Map<String, Any?>>).map {
+            FileHit("1", it.str("path")!!, it.str("name")!!, "document", it.str("ext")!!, 1, (it["mtime"] as Number).toDouble(),
+                score = (it["score"] as Number).toDouble(), confidence = (it["confidence"] as? Number)?.toDouble(),
+                reasons = (it["reasons"] as List<*>).map { r -> r as String })
+        }
+        check("ranking: coverage bonus matches the desktop") {
+            val bad = fx.list("coverage")!!.map { it as Map<String, Any?> }.filter { c ->
+                val got = Ranking.coverageBonus((c["qws"] as List<*>).map { it as String }, c.str("name")!!, c.str("chunk")!!)
+                kotlin.math.abs(got - (c["bonus"] as Number).toDouble()) > 1e-6
+            }.map { it.str("name") }
+            eq(bad, emptyList<String>(), "mismatches")
+            eq(Ranking.STOP.sorted(), fx.list("stop")!!.map { it as String }, "stop words")
+        }
+        check("ranking: “which one?” questions match the desktop") {
+            for (q in fx.list("questions")!!.map { it as Map<String, Any?> }) {
+                val hs = hits(q["hits"])
+                eq(Clarify.distinguish(hs, now).first, q.str("question"), "question")
+                eq(hs.map { Clarify.optionDetail(it, now) }, (q["details"] as List<*>).map { it as String }, "details")
+            }
+        }
+        check("ranking: when to ask matches the desktop") {
+            for (a in fx.list("ambiguous")!!.map { it as Map<String, Any?> }) eq(Clarify.ambiguous(hits(a["hits"]), a["topic"] as Boolean), a["ask"], "ask")
+        }
+        check("usage: sent beats opened, picks are remembered, everything fades") {
+            var clock = 1_000_000.0
+            val u = UsageStore(nowS = { clock })
+            u.osRecent = { mapOf("/d/opened.docx" to clock - 86400) }
+            u.record("/d/sent.docx", "sent")
+            u.recordPick("term paper", "/d/final.docx")
+            val s1 = u.signals(listOf("/d/sent.docx", "/d/opened.docx", "/d/final.docx", "/d/never.docx"), "Term Papers")
+            ok(s1["/d/sent.docx"]!!.first > s1["/d/opened.docx"]!!.first, "sent > opened")
+            ok(s1["/d/final.docx"]!!.second > 0 && s1["/d/final.docx"]!!.third[0].startsWith("you picked it"), "pick remembered")
+            eq(s1["/d/never.docx"]!!.first, 0.0)
+            clock += 60 * 86400
+            ok(u.signals(listOf("/d/sent.docx"))["/d/sent.docx"]!!.first < s1["/d/sent.docx"]!!.first / 4, "fades")
         }
     }
 
@@ -208,6 +253,29 @@ object CoreSuite {
     }
 
     private fun agentFlows() {
+        check("a phone isn't an audio output; sending to my phone uses Bluetooth share") {
+            val w = World()
+            w.bt.radios["bt:s24"] = Device("bt:s24", "Alex's S24", "phone", address = "AA:BB:CC:00:11:22")
+            w.bt.pairedIds += "bt:s24"
+            val r = w.agent.connectDevice("bt:s24")
+            ok(!r.ok && "is a phone" in r.text && "Audio is playing" !in r.text, r.text)
+            val s = w.agent.ask("send the board update to my phone")
+            ok(s.ok && s.action == "bluetooth_share" && "S24" in s.text && "Alex's S24" !in s.text, s.text)
+            w.close()
+        }
+        check("audio is only claimed after reading the real output") {
+            val w = World()
+            class OutputOnly(val out: AudioOutput) : BluetoothPort {
+                override fun paired() = emptyList<Device>(); override fun scan(seconds: Double) = emptyList<Device>()
+                override fun pair(dev: Device) = false; override fun connect(dev: Device) = false; override fun disconnect(dev: Device) = false
+                override fun audioOutput() = out; override fun setAudioOutput(dev: Device) = false
+            }
+            ok(OutputOnly(AudioOutput("Phone speaker")).verifyAudioOutput(Device("x", "Alex's AirPods Pro", address = "F0:B3:EC:01:02:03"), 400) == false, "elsewhere")
+            ok(OutputOnly(AudioOutput("?", known = false)).verifyAudioOutput(Device("x", "Alex's AirPods Pro"), 400) == null, "can't read")
+            ok(!w.bt.outputMatches(AudioOutput("Speaker (JBL Flip 6)", transport = "bluetooth"), Device("x", "JBL Flip")), "no substring matches")
+            ok(w.bt.outputMatches(AudioOutput("Headphones (WH-CH720N)", transport = "bluetooth"), Device("x", "WH-CH720N")), "bracketed name")
+            w.close()
+        }
         check("connect to Daniel's registered headphones: no questions, verified output") {
             val w = World()
             val r = w.agent.ask("Hey, connect to my friend Daniel's headphones")

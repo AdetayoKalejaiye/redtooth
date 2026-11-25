@@ -56,6 +56,12 @@ class Agent(
 
     /** Extra way to reach a device when no LAN endpoint answers (Android: Wi-Fi Aware). */
     @Volatile var routeFallback: ((Device) -> Endpoint?)? = null
+    /** What you open, send and pick (feeds search ranking; your answers to "which file?" are remembered). */
+    @Volatile var usage: UsageStore? = null
+    /** This device's Redtooth id, so "send it to my laptop" never means this phone. */
+    @Volatile var thisDeviceId: String? = null
+    /** Devices you've marked as yours, by id (with the name friends use). */
+    @Volatile var mine: Map<String, Device> = emptyMap()
 
     init {
         sender.route = { routeFor(it) }
@@ -158,8 +164,13 @@ class Agent(
             "choose_file" -> {
                 val hit = opt.payload as FileHit
                 ctx.file = hit; ctx.touch()
+                (st["query"] as? String)?.takeIf { it.isNotBlank() }?.let { usage?.recordPick(it, hit.path) }
                 val p = st["person"] as? Person
                 if (p != null) startSend(hit, p, st["device"] as? Device) else Reply("Selected ${hit.name}. Who should I send it to?", files = listOf(hit))
+            }
+            "choose_own_device" -> {
+                val hit = ctx.file ?: return Reply("Which file should I send?", ok = false)
+                startSend(hit, st["person"] as Person, opt.payload as Device)
             }
             "choose_person" -> {
                 val p = opt.payload as Person
@@ -242,15 +253,25 @@ class Agent(
 
     private fun doConnect(dev: Device, owner: Person): Reply {
         val whose = if (owner.isSelf) "your" else possessive(owner.first)
+        val name = dropOwner(dev.label(), owner.first)
+        if (dev.kind !in AUDIO_KINDS && dev.paired) {
+            val noun = mapOf("phone" to "a phone", "tablet" to "a tablet", "laptop" to "a computer", "desktop" to "a computer")[dev.kind] ?: "not an audio device"
+            return Reply("${whose.replaceFirstChar { it.uppercase() }} $name is $noun, so there's nothing to play audio through. To send it a file, say “send <file> to my ${if (dev.kind == "tablet") "tablet" else "phone"}”.", ok = false, device = dev)
+        }
         onEvent("status", "Connecting")
         val out = devices.connect(dev, owner)
         ctx.device = dev
+        val secs = if (out.ms >= 1000) " (${(out.ms / 1000).toInt()} s)" else ""
         if (out.kind == "failed") {
-            return if (out.reason == "pair") Reply("I couldn't pair with ${dev.label()}. Ask ${if (owner.isSelf) "yourself" else owner.first} to hold the power button until the light flashes, then try again.", ok = false, device = dev, status = "Not connected")
-            else Reply("${whose.replaceFirstChar { it.uppercase() }} ${dev.label()} isn't responding. Make sure they're on and nearby, then try again.", ok = false, device = dev, status = "Not connected")
+            return if (out.reason == "pair") Reply("$name didn't accept pairing$secs. ${if (owner.isSelf) "Put them" else "Ask ${owner.first} to put them"} back in pairing mode (hold the power button until the light flashes) and try again.", ok = false, device = dev, status = "Not connected")
+            else Reply("${whose.replaceFirstChar { it.uppercase() }} $name didn't answer$secs, so they're not connected. They need to be switched on (out of the case), nearby, and not connected to another phone.", ok = false, device = dev, status = "Not connected")
         }
-        if (out.verified) return Reply("Connected to $whose ${dev.label()}. Audio is playing through them.", device = dev, person = owner, status = "Audio output", timings = mutableMapOf("connect_ms" to out.ms))
-        return Reply("Connected to $whose ${dev.label()}, but audio is still going to ${bt.audioOutput().name}. Pick ${dev.label()} as the output.", device = dev, person = owner, status = "Connected", ok = false, timings = mutableMapOf("connect_ms" to out.ms))
+        // Only after reading the phone's actual output and matching it to this device.
+        return when (out.verified) {
+            true -> Reply("Connected to $whose $name. Audio is playing through them.", device = dev, person = owner, status = "Audio output", timings = mutableMapOf("connect_ms" to out.ms))
+            null -> Reply("Connected to $whose $name. I can't read which output the phone is using, so I can't confirm audio goes there.", device = dev, person = owner, status = "Connected", ok = false, timings = mutableMapOf("connect_ms" to out.ms))
+            false -> Reply("$name are connected, but audio is still going to ${bt.audioOutput().name}. Pick $name in the output switcher.", device = dev, person = owner, status = "Connected", ok = false, timings = mutableMapOf("connect_ms" to out.ms))
+        }
     }
 
     private fun pairingMode(owner: Person, kind: String?, hint: String?): Reply {
@@ -301,13 +322,15 @@ class Agent(
     private fun pickDestination(p: Person, kind: String?): Device? =
         destinations(p).filter { kind == null || it.kind == kind || (kind == "laptop" && it.kind == "desktop") }.firstOrNull()
 
-    private fun ambiguous(fq: FileQuery, hits: List<FileHit>) = hits.size >= 2 && (fq.topic.isEmpty() && fq.names.isEmpty() || hits[1].score >= 0.85)
+    private fun ambiguous(fq: FileQuery, hits: List<FileHit>) = Clarify.ambiguous(hits, fq.topic.isNotEmpty() || fq.names.isNotEmpty())
 
     private fun fileQuestion(fq: FileQuery, hits: List<FileHit>, st: MutableMap<String, Any?>): Question {
         val noun = fq.kinds.firstOrNull()?.let { kindNoun[it] } ?: "file"
         val n = minOf(3, hits.size)
-        val prompt = if (fq.timeLabel != null) "Which $noun? ${mapOf(2 to "Two", 3 to "Three")[n] ?: n} were edited ${fq.timeLabel}." else "Which $noun did you mean?"
-        val opts = hits.take(3).map { Option("f${it.id}", it.name.substringBeforeLast('.'), "Edited ${whenLabel(it.mtime)}" + if (it.snippetLabel.isNotEmpty()) " · ${it.snippetLabel}" else "", it) }
+        val prompt = if (fq.timeLabel != null && fq.topic.isEmpty() && fq.names.isEmpty()) "Which $noun? ${mapOf(2 to "Two", 3 to "Three")[n] ?: n} were edited ${fq.timeLabel}."
+            else Clarify.distinguish(hits).first // says what differs: the final or the draft, the PDF or the Word doc…
+        val opts = hits.take(3).map { Option("f${it.id}", it.name.substringBeforeLast('.'), Clarify.optionDetail(it), it) }
+        st["query"] = (listOf(fq.topic) + fq.names).joinToString(" ").trim()
         return Question(newId("q_"), "choose_file", prompt, opts, st).also { ctx.pending = it }
     }
 
@@ -332,27 +355,62 @@ class Agent(
             return err
         }
         person!!
-        if (person.isSelf) return Reply("That's you. Who should I send it to?", ok = false)
         if (hits.isEmpty()) {
             val msg = if (fq.refersPrevious) "Which file? Nothing is selected yet." else "I couldn't find a ${fq.describe()}.${indexNote()}"
             return Reply(msg, files = files.recent(4), person = person, ok = false, timings = mutableMapOf("find_match_ms" to findMs))
         }
-        val dest = pickDestination(person, intent.deviceKind)
+        var target = person
+        val dest = if (person.isSelf) {
+            val (me2, d, ask) = ownDestination(intent.deviceKind)
+            if (ask != null) { if (!ambiguous(fq, hits)) ctx.file = hits[0]; return ask.also { it.timings["find_match_ms"] = findMs } }
+            target = me2; d
+        } else pickDestination(person, intent.deviceKind)
         if (ambiguous(fq, hits)) {
-            val q = fileQuestion(fq, hits, mutableMapOf("person" to person, "device" to dest))
+            val q = fileQuestion(fq, hits, mutableMapOf("person" to target, "device" to dest))
             return Reply(q.prompt, question = q, files = hits.take(3), person = person, status = "Waiting for you", timings = mutableMapOf("find_match_ms" to findMs))
         }
-        return startSend(hits[0], person, dest).also { it.timings["find_match_ms"] = findMs }
+        return startSend(hits[0], target, dest).also { it.timings["find_match_ms"] = findMs }
+    }
+
+    /** "Send it to my phone/laptop": your other devices running Redtooth first; else a phone paired over
+     *  Bluetooth, sent with the system's Bluetooth share (it shows an Accept prompt on the other phone). */
+    private fun ownDestination(kind: String?): Triple<Person, Device?, Reply?> {
+        val prof = runCatching { directory.lookup(listOfNotNull(me.phone))[me.phone] }.getOrNull()
+        val self = if (prof != null) me.copy(profile = prof, isSelf = true) else me
+        val want = kind ?: "phone"
+        prof?.devices?.firstOrNull { it.kind in APP_KINDS && it.endpoints.isNotEmpty() && it.id != thisDeviceId && (it.kind == want || (want == "laptop" && it.kind == "desktop")) }
+            ?.let { return Triple(self, it, null) }
+        val groups = mapOf("phone" to setOf("phone"), "tablet" to setOf("tablet", "phone"), "laptop" to setOf("laptop", "desktop"), "desktop" to setOf("desktop", "laptop"))[want] ?: setOf("phone")
+        val paired = bt.paired().filter { it.kind in groups && it.id != thisDeviceId }
+        if (paired.isEmpty()) return Triple(self, null, Reply("I don't see your $want: it isn't running Redtooth and it isn't paired with this device. Install Redtooth on it, or pair it in Bluetooth settings.", ok = false))
+        val first = me.first.lowercase()
+        val ranked = paired.sortedWith(compareBy({ it.id !in mine }, { first !in it.name.lowercase() }, { !it.connected }, { it.name }))
+        val best = ranked[0]
+        if (ranked.size == 1 || best.id in mine || first in best.name.lowercase()) return Triple(self, best, null)
+        val q = Question(newId("q_"), "choose_own_device", "Which one is your $want?", ranked.take(5).map { Option(it.id, it.label(), if (it.connected) "Connected" else "Paired", it) }, mutableMapOf("person" to self))
+        ctx.pending = q
+        return Triple(self, null, Reply(q.prompt + " (Mark it as yours in Your devices and I won't ask again.)", question = q, status = "Waiting for you"))
     }
 
     private fun startSend(hit: FileHit, person: Person, dest0: Device?): Reply {
         ctx.person = person; ctx.file = hit; ctx.touch()
+        if (dest0 != null && dest0.endpoints.isEmpty() && dest0.address != null) {
+            // A paired phone or computer without Redtooth: plain Bluetooth file transfer via the system share sheet.
+            val whose = if (person.isSelf) "your" else possessive(person.first)
+            if (Regex("iphone|ipad", RegexOption.IGNORE_CASE).containsMatchIn("${dest0.name} ${dest0.model ?: ""}"))
+                return Reply("iPhones don't accept Bluetooth file transfers. Install Redtooth on $whose ${dropOwner(dest0.label(), person.first)}, or use AirDrop.", ok = false, files = listOf(hit))
+            usage?.record(hit.path, "sent")
+            ctx.device = dest0
+            return Reply("Sending ${hit.name} to $whose ${dropOwner(dest0.label(), person.first)} over Bluetooth. Pick it in the list that opens, then tap Accept on it.",
+                person = person, files = listOf(hit), device = dest0, action = "bluetooth_share", status = "Waiting for you")
+        }
         if (!person.hasApp) return Reply("${person.first} doesn't use Redtooth yet, so I can't deliver to their devices. Send them an invite and I'll remember their devices once they join.", person = person, files = listOf(hit), ok = false)
         val dest = dest0 ?: pickDestination(person, null)
             ?: return Reply("None of ${possessive(person.first)} devices are reachable right now. I'll keep the file selected.", person = person, files = listOf(hit), ok = false)
         val src = files.source(hit) ?: return Reply("I can't open ${hit.name} anymore.", ok = false)
         ctx.device = dest
         val t = sender.start(src, person.first, dest)
+        usage?.record(hit.path, "sent")
         ctx.lastTransferId = t.id
         return Reply("Sending ${hit.name} to ${possessive(person.first)} ${dest.label()}.", person = person, files = listOf(hit), transferId = t.id, status = "Waiting for ${person.first}")
     }
