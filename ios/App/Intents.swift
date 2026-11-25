@@ -56,11 +56,24 @@ struct ConnectHeadphonesIntent: AppIntent {
     }
 }
 
+/// Opens Your devices (the equivalent of the desktop tray's "Your devices…").
+struct YourDevicesIntent: AppIntent {
+    static let title: LocalizedStringResource = "Your devices"
+    static let openAppWhenRun = true
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        AppModel.shared.openDevicesRequested = true
+        return .result()
+    }
+}
+
 struct RedtoothShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: AskRedtoothIntent(), phrases: ["Ask \(.applicationName)", "Send a file with \(.applicationName)"],
                     shortTitle: "Ask Redtooth", systemImageName: "dot.radiowaves.left.and.right")
         AppShortcut(intent: ConnectHeadphonesIntent(), phrases: ["Connect headphones with \(.applicationName)"],
                     shortTitle: "Headphones", systemImageName: "headphones")
+        AppShortcut(intent: YourDevicesIntent(), phrases: ["Show my devices in \(.applicationName)"],
+                    shortTitle: "Your devices", systemImageName: "hifispeaker.and.homepod")
     }
 }

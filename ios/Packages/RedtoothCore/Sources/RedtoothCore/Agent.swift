@@ -49,6 +49,10 @@ public final class Agent: @unchecked Sendable {
     private var routeTasks: [String: Task<Endpoint?, Never>] = [:]
     private let lock = NSLock()
     private var forcedPerson: Person?
+    /// What you open, send and pick (feeds ranking; answers to "which file?" are remembered).
+    public var usage: UsageStore?
+    /// This iPhone's Redtooth id, so "send it to my phone" means another device.
+    public var thisDeviceId: String?
     /// Extra way to reach a device when no LAN endpoint answers (the app sets Wi-Fi Aware here).
     public var routeFallback: (@Sendable (Device) async -> Endpoint?)?
 
@@ -164,6 +168,7 @@ public final class Agent: @unchecked Sendable {
         case "choose_file":
             let hit = opt.payload as! FileHit
             ctx.file = hit; ctx.touch()
+            if let query = q.state["query"] as? String, !query.isEmpty { usage?.recordPick(query, path: hit.path) }
             if let p = q.state["person"] as? Person { return startSend(hit, p, q.state["device"] as? Device) }
             return Reply("Selected \(hit.name). Who should I send it to?", files: [hit])
         case "choose_person":
@@ -219,7 +224,7 @@ public final class Agent: @unchecked Sendable {
         let remembered = audioMemory.lookup(ownerPhone: owner.isSelf ? me.phone : owner.phone)
         let label = remembered ?? registered.map { $0.shortModel ?? $0.label } ?? "\(whose) \(kind)"
         let out = audio.currentOutput()
-        if out.bluetooth, let remembered, out.name.localizedCaseInsensitiveContains(remembered) || remembered.localizedCaseInsensitiveContains(out.name) {
+        if out.bluetooth, let remembered, out.name.compare(remembered, options: .caseInsensitive) == .orderedSame {
             return Reply("Audio is already playing through \(whose) \(remembered).", status: "Audio output")
         }
         ctx.audioOwner = owner
@@ -249,17 +254,23 @@ public final class Agent: @unchecked Sendable {
     }
 
     private func ambiguous(_ fq: FileQuery, _ hits: [FileHit]) -> Bool {
-        hits.count >= 2 && ((fq.topic.isEmpty && fq.names.isEmpty) || hits[1].score >= 0.85)
+        Clarify.ambiguous(hits, hasTopic: !fq.topic.isEmpty || !fq.names.isEmpty)
     }
 
     private func fileQuestion(_ fq: FileQuery, _ hits: [FileHit], _ state: [String: Any]) -> Question {
         let noun = fq.kinds.first.flatMap { Self.kindNoun[$0] } ?? "file"
         let n = min(3, hits.count)
-        let prompt = fq.timeLabel.map { "Which \(noun)? \(n == 2 ? "Two" : n == 3 ? "Three" : "\(n)") were edited \($0)." } ?? "Which \(noun) did you mean?"
-        let opts = hits.prefix(3).map { h in
-            Option(id: "f" + h.id, label: (h.name as NSString).deletingPathExtension,
-                   detail: "Edited \(Self.whenLabel(h.mtime))" + (h.snippetLabel.isEmpty ? "" : " · \(h.snippetLabel)"), payload: h)
+        let prompt: String
+        if let tl = fq.timeLabel, fq.topic.isEmpty, fq.names.isEmpty {
+            prompt = "Which \(noun)? \(n == 2 ? "Two" : n == 3 ? "Three" : "\(n)") were edited \(tl)."
+        } else {
+            prompt = Clarify.distinguish(hits).0 // says what differs: the final or the draft, the PDF or the Word doc…
         }
+        let opts = hits.prefix(3).map { h in
+            Option(id: "f" + h.id, label: (h.name as NSString).deletingPathExtension, detail: Clarify.optionDetail(h), payload: h)
+        }
+        var state = state
+        state["query"] = ([fq.topic] + fq.names).joined(separator: " ").trimmingCharacters(in: .whitespaces)
         let q = Question(id: Self.newId("q_"), kind: "choose_file", prompt: prompt, options: Array(opts), state: state)
         ctx.pending = q
         return q
@@ -286,13 +297,24 @@ public final class Agent: @unchecked Sendable {
             err.timings["find_match_ms"] = findMs
             return err
         }
-        let person = person0!
-        if person.isSelf { return Reply("That's you. Who should I send it to?", ok: false) }
+        var person = person0!
         if hits.isEmpty {
             let msg = fq.refersPrevious ? "Which file? Nothing is selected yet." : "I couldn't find a \(fq.describe()).\(indexNote())"
             return Reply(msg, files: files.recent(4), person: person, ok: false, timings: ["find_match_ms": findMs])
         }
-        let dest = pickDestination(person, intent.deviceKind)
+        var dest: Device?
+        if person.isSelf {
+            // "Send it to my laptop": your other devices running Redtooth (iPhones can't send plain Bluetooth files).
+            let prof = (try? await directory.lookup(phones: [me.phone].compactMap { $0 }))?[me.phone ?? ""]
+            if let prof { person = Person(contact: me.contact, profile: prof, isSelf: true) }
+            let want = intent.deviceKind ?? "laptop"
+            dest = (prof?.devices ?? []).first { appKinds.contains($0.kind) && !$0.endpoints.isEmpty && $0.id != thisDeviceId && ($0.kind == want || (want == "laptop" && $0.kind == "desktop")) }
+            if dest == nil {
+                return Reply("I don't see your \(want) running Redtooth. Start Redtooth on it (same Wi-Fi), or use AirDrop.", files: Array(hits.prefix(1)), ok: false)
+            }
+        } else {
+            dest = pickDestination(person, intent.deviceKind)
+        }
         if ambiguous(fq, hits) {
             let q = fileQuestion(fq, hits, ["person": person, "device": dest as Any])
             return Reply(q.prompt, status: "Waiting for you", question: q, files: Array(hits.prefix(3)), person: person, timings: ["find_match_ms": findMs])
@@ -313,8 +335,9 @@ public final class Agent: @unchecked Sendable {
         guard let src = files.source(hit) else { return Reply("I can't open \(hit.name) anymore.", ok: false) }
         ctx.device = dest
         let t = sender.start(src, recipientFirst: person.first, device: dest)
+        usage?.record(hit.path, kind: "sent")
         ctx.lastTransferId = t.id
-        return Reply("Sending \(hit.name) to \(possessive(person.first)) \(dest.label).", status: "Waiting for \(person.first)", files: [hit], person: person, transferId: t.id)
+        return Reply("Sending \(hit.name) to \(person.isSelf ? "your" : possessive(person.first)) \(dest.label).", status: "Waiting for \(person.first)", files: [hit], person: person, transferId: t.id)
     }
 
     private func retarget(_ intent: Intent) async -> Reply {
@@ -355,12 +378,5 @@ public final class Agent: @unchecked Sendable {
 
     static func newId(_ prefix: String) -> String { prefix + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12).lowercased() }
 
-    public static func whenLabel(_ mtime: Double, now: Date = Date()) -> String {
-        let d = Date(timeIntervalSince1970: mtime), cal = Calendar.current
-        let t = d.formatted(date: .omitted, time: .shortened)
-        if cal.isDate(d, inSameDayAs: now) { return t }
-        if cal.isDateInYesterday(d) { return "Yesterday \(t)" }
-        if now.timeIntervalSince(d) < 7 * 86400 { return d.formatted(.dateTime.weekday(.abbreviated)) + " " + t }
-        return d.formatted(.dateTime.month(.abbreviated).day())
-    }
+    public static func whenLabel(_ mtime: Double, now: Date = Date()) -> String { Clarify.whenLabel(mtime, now: now) }
 }

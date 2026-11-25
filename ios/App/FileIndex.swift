@@ -13,6 +13,8 @@ final class FileIndex: FileSearch, @unchecked Sendable {
     private let q = DispatchQueue(label: "redtooth.index")
     private var progress = (done: 0, queued: 0, complete: true)
     private(set) var fts = "fts5"
+    /// What you open, send and pick (shared with the agent).
+    var usage: UsageStore?
 
     init(path: URL = Shared.container.appendingPathComponent("index.sqlite")) {
         sqlite3_open(path.path, &db)
@@ -149,8 +151,15 @@ final class FileIndex: FileSearch, @unchecked Sendable {
                 let r = -sqlite3_column_double(st, 5)
                 raw.append((hit(st, 0, Self.text(st, 6), "Text"), r))
             }
-            let now = Date().timeIntervalSince1970
-            let scored = raw.map { h, r -> (FileHit, Double) in (h, r + 0.5 / (1 + max(0, now - h.mtime) / 86400 / 30)) }.sorted { $0.1 > $1.1 }
+            // Same adjustments as the desktop: how much of the request the file covers, what you use, newer first on ties.
+            let qws = Ranking.queryWords(words.joined(separator: " "))
+            let sig = usage?.signals(raw.map { $0.0.path }, query: words.joined(separator: " ")) ?? [:]
+            let scored = raw.map { h, r -> (FileHit, Double) in
+                var h = h
+                let (u, pick, why) = sig[h.path] ?? (0, 0, [])
+                h.reasons = why
+                return (h, r / 10 + Ranking.coverageBonus(qws, name: h.name, chunk: h.snippet) + 0.02 * u + 0.05 * pick + Ranking.recency(h.mtime))
+            }.sorted { ($0.1, $0.0.mtime) > ($1.1, $1.0.mtime) }
             let top = max(scored.first?.1 ?? 1, 1e-9)
             out = scored.prefix(10).map { var h = $0.0; h.score = $0.1 / top; return h }
         }

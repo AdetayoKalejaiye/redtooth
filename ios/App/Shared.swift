@@ -19,6 +19,13 @@ enum Shared {
         get { defaults.string(forKey: "country") ?? detectedCountry }
         set { defaults.set(newValue, forKey: "country"); Phones.country = newValue }
     }
+    /// Bluetooth outputs you've marked as yours (iOS can't list paired devices, so you mark the one playing now).
+    struct MyDevice: Codable, Hashable { var name: String; var kind: String; var alias: String? }
+    static var myDevices: [MyDevice] {
+        get { (try? JSONDecoder().decode([MyDevice].self, from: defaults.data(forKey: "my_devices") ?? Data())) ?? [] }
+        set { defaults.set(try? JSONEncoder().encode(newValue), forKey: "my_devices") }
+    }
+
     static var detectedCountry: String {
         let r = Locale.current.region?.identifier.uppercased() ?? ""
         return Phones.byISO[r] != nil ? r : Phones.defaultCountry

@@ -64,6 +64,9 @@ final class AppModel: NSObject, UNUserNotificationCenterDelegate {
             return try await NWByteChannel.connect(host: ep.host, port: ep.port)
         }
         let a = Agent(me: me, people: people, directory: directory, files: files, audio: SystemAudio(), audioMemory: DefaultsAudioMemory(), sender: sender)
+        a.usage = UsageStore(url: Shared.container.appendingPathComponent("usage.json"))
+        a.thisDeviceId = Shared.deviceId
+        files.usage = a.usage
         a.routeFallback = { d in d.wifiAware && DirectLink.available ? Endpoint(kind: "wifi_aware", host: d.name, port: 0) : nil }
         agent = a
         startReceiving()
@@ -80,7 +83,13 @@ final class AppModel: NSObject, UNUserNotificationCenterDelegate {
         var d = Device(id: Shared.deviceId, name: UIDevice.current.name, kind: "phone", model: "iPhone", hasApp: true,
                        endpoints: ip.map { [Endpoint(kind: "lan", host: $0, port: lan.port)] } ?? [], wifiAware: DirectLink.available)
         d.apnsToken = Shared.defaults.string(forKey: "apns")
-        try await directory.setDevices(phone: phone, devices: [d])
+        // Your devices: what contacts can ask for by name ("connect to Adetayo's speaker").
+        let mine = Shared.myDevices.map { m -> Device in
+            var dev = Device(id: "out:" + m.name.lowercased(), name: m.name, kind: m.kind)
+            dev.alias = m.alias
+            return dev
+        }
+        try await directory.setDevices(phone: phone, devices: [d] + mine)
     }
 
     private func startReceiving() {
@@ -163,6 +172,29 @@ final class AppModel: NSObject, UNUserNotificationCenterDelegate {
         if case let .showRoutePicker(hint) = r.action { routeHint = hint }
         lastMetrics.merge(r.timings) { $1 }
         if let id = r.transferId, let t = agent?.sender.transfer(id) { transfers[id] = t }
+    }
+
+    // MARK: Your devices
+
+    var myDevices: [Shared.MyDevice] = Shared.myDevices
+    var openDevicesRequested = false
+    var currentOutput: (name: String, bluetooth: Bool) { SystemAudio().currentOutput() }
+
+    /// iOS doesn't let apps list paired Bluetooth devices, so you mark the one that's playing now as yours.
+    func markCurrentOutputMine(kind: String, alias: String?) {
+        let out = currentOutput
+        guard out.bluetooth else { return }
+        var list = Shared.myDevices.filter { $0.name != out.name }
+        list.append(.init(name: out.name, kind: kind, alias: alias?.isEmpty == false ? alias : nil))
+        Shared.myDevices = list; myDevices = list
+        Task { try? await registerThisDevice() }
+    }
+
+    func updateMine(_ d: Shared.MyDevice, alias: String?, remove: Bool = false) {
+        var list = Shared.myDevices.filter { $0.name != d.name }
+        if !remove { list.append(.init(name: d.name, kind: d.kind, alias: alias?.isEmpty == false ? alias : nil)) }
+        Shared.myDevices = list; myDevices = list
+        Task { try? await registerThisDevice() }
     }
 
     // MARK: Onboarding

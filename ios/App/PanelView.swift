@@ -8,6 +8,8 @@ struct PanelView: View {
     @State private var text = ""
     @FocusState private var focused: Bool
     @State private var showFolders = false
+    @State private var showDevices = false
+    @State private var showPair = false
 
     var body: some View {
         NavigationStack {
@@ -15,6 +17,7 @@ struct PanelView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(model.incoming, id: \.id) { IncomingCard(offer: $0) }
+                        DevicesRow(showDevices: $showDevices, showPair: $showPair)
                         if model.feed.isEmpty { Suggestions { text = $0; submit() } }
                         ForEach(model.feed) { item in FeedRow(item: item).id(item.id) }
                         if model.busy { ProgressView().padding(.leading, 4) }
@@ -37,6 +40,9 @@ struct PanelView: View {
                 ToolbarItem(placement: .topBarLeading) { RoutePicker(hint: nil).frame(width: 32, height: 32) }
             }
             .sheet(isPresented: $showFolders) { FoldersView() }
+            .sheet(isPresented: $showDevices) { YourDevicesView() }
+            .onChange(of: model.openDevicesRequested) { _, v in if v { showDevices = true; model.openDevicesRequested = false } }
+            .sheet(isPresented: $showPair) { PairHelpView() }
             .sheet(item: Binding(get: { model.routeHint.map(RouteHint.init) }, set: { model.routeHint = $0?.name })) { RouteSheet(hint: $0.name) }
         }
     }
@@ -257,5 +263,111 @@ extension View {
         } else {
             self.background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
         }
+    }
+}
+
+
+/// Playing-through line, Your devices, Pair new device. iOS shows only the current output, so that's what we show.
+struct DevicesRow: View {
+    @Environment(AppModel.self) private var model
+    @Binding var showDevices: Bool
+    @Binding var showPair: Bool
+    var body: some View {
+        let out = model.currentOutput
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: out.bluetooth ? "headphones" : "speaker.wave.2.fill").frame(width: 28)
+                VStack(alignment: .leading) {
+                    Text("Playing through").font(.caption).foregroundStyle(.secondary)
+                    Text(out.name).font(.headline)
+                }
+                Spacer()
+                RoutePicker(hint: nil).frame(width: 32, height: 32)
+            }
+            Divider()
+            Button { showDevices = true } label: {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Your devices").fontWeight(.semibold)
+                        Text(model.myDevices.isEmpty ? "Mark which are yours" : "\(model.myDevices.count) marked as yours").font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                }
+            }.buttonStyle(.plain)
+            Button("Pair new device", systemImage: "plus") { showPair = true }.buttonStyle(.bordered)
+        }
+        .padding(12)
+        .glass(cornerRadius: 16)
+    }
+}
+
+/// iOS can't list paired devices or pair them for an app; you mark the output that's playing now.
+struct YourDevicesView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var alias = ""
+    @State private var kind = "headphones"
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section(footer: Text("A contact who uses Redtooth can then say “connect to \(Shared.myName?.split(separator: " ").first.map(String.init) ?? "your")'s headphones” and their Redtooth knows exactly which ones you mean. Nothing is shared until you add it here.")) {
+                    if model.myDevices.isEmpty { Text("None yet.").foregroundStyle(.secondary) }
+                    ForEach(model.myDevices, id: \.self) { d in MyDeviceRow(device: d) }
+                }
+                let out = model.currentOutput
+                Section(header: Text("Playing now"), footer: Text(out.bluetooth ? "" : "Connect the headphones or speaker you want to add (Control Center › audio), then come back.")) {
+                    if out.bluetooth && !model.myDevices.contains(where: { $0.name == out.name }) {
+                        Text(out.name).font(.headline)
+                        Picker("Kind", selection: $kind) { Text("Headphones").tag("headphones"); Text("Speaker").tag("speaker") }.pickerStyle(.segmented)
+                        TextField("Name friends use (optional)", text: $alias)
+                        Button("This is mine") { model.markCurrentOutputMine(kind: kind, alias: alias); alias = "" }
+                    } else {
+                        Text(out.bluetooth ? "\(out.name) is already yours." : "Nothing Bluetooth is playing.").foregroundStyle(.secondary)
+                    }
+                    RoutePicker(hint: nil).frame(height: 36)
+                }
+            }
+            .navigationTitle("Your devices")
+            .toolbar { Button("Done") { dismiss() } }
+        }
+    }
+}
+
+struct MyDeviceRow: View {
+    @Environment(AppModel.self) private var model
+    let device: Shared.MyDevice
+    @State private var alias: String
+    init(device: Shared.MyDevice) { self.device = device; _alias = State(initialValue: device.alias ?? "") }
+    var body: some View {
+        VStack(alignment: .leading) {
+            Label(device.name, systemImage: device.kind == "speaker" ? "hifispeaker" : "headphones")
+            HStack {
+                TextField("Name friends use", text: $alias).textFieldStyle(.roundedBorder)
+                Button("Save") { model.updateMine(device, alias: alias) }
+                Button("Remove", role: .destructive) { model.updateMine(device, alias: nil, remove: true) }
+            }
+        }
+    }
+}
+
+/// Apps can't pair Bluetooth devices on iOS; this says exactly where to do it.
+struct PairHelpView: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("iOS only lets Settings pair new Bluetooth devices.").font(.headline)
+                Label("Put the headphones or speaker in pairing mode (usually: hold the power button until the light flashes).", systemImage: "1.circle")
+                Label("Open Settings › Bluetooth and tap it under Other Devices.", systemImage: "2.circle")
+                Label("Come back: it appears in the audio menu, and you can add it to Your devices.", systemImage: "3.circle")
+                Spacer()
+            }
+            .padding(20)
+            .navigationTitle("Pair new device")
+            .toolbar { Button("Done") { dismiss() } }
+        }
+        .presentationDetents([.medium])
     }
 }

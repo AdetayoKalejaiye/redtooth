@@ -1,0 +1,462 @@
+{
+ "now": 1795620600.0,
+ "stop": [
+  "about",
+  "and",
+  "deck",
+  "doc",
+  "document",
+  "file",
+  "for",
+  "from",
+  "my",
+  "our",
+  "that",
+  "the",
+  "this",
+  "with",
+  "your"
+ ],
+ "coverage": [
+  {
+   "text": "term paper",
+   "qws": [
+    "term",
+    "paper"
+   ],
+   "name": "HIST 201 Term Paper - final.docx",
+   "chunk": "The economic effects of the railroad.",
+   "bonus": 0.055
+  },
+  {
+   "text": "term paper",
+   "qws": [
+    "term",
+    "paper"
+   ],
+   "name": "mid_Term_report.docx",
+   "chunk": "Midterm progress report.",
+   "bonus": 0.0075
+  },
+  {
+   "text": "term paper",
+   "qws": [
+    "term",
+    "paper"
+   ],
+   "name": "graphpaper.pdf",
+   "chunk": "Printable grid.",
+   "bonus": 0.0
+  },
+  {
+   "text": "term paper",
+   "qws": [
+    "term",
+    "paper"
+   ],
+   "name": "termpaper.docx",
+   "chunk": "",
+   "bonus": 0.045
+  },
+  {
+   "text": "term paper",
+   "qws": [
+    "term",
+    "paper"
+   ],
+   "name": "DocuSign_d9a0.pdf",
+   "chunk": "These terms survive termination. Paper copies on request.",
+   "bonus": 0.014
+  },
+  {
+   "text": "customer churn",
+   "qws": [
+    "customer",
+    "churn"
+   ],
+   "name": "Retention Plan.pptx",
+   "chunk": "Keeping more customers: churn fell 12%.",
+   "bonus": 0.014
+  },
+  {
+   "text": "board update",
+   "qws": [
+    "board",
+    "update"
+   ],
+   "name": "Q4 Board Update.pptx",
+   "chunk": "Revenue and hiring.",
+   "bonus": 0.055
+  },
+  {
+   "text": "invoices",
+   "qws": [
+    "invoices"
+   ],
+   "name": "Invoice INV-88312.pdf",
+   "chunk": "Amount due",
+   "bonus": 0.015
+  }
+ ],
+ "questions": [
+  {
+   "hits": [
+    {
+     "name": "HIST 201 Term Paper - final.docx",
+     "path": "/Users/r/Documents/HIST 201 Term Paper - final.docx",
+     "ext": ".docx",
+     "mtime": 1794583800.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "HIST 201 Term Paper - draft.docx",
+     "path": "/Users/r/Documents/HIST 201 Term Paper - draft.docx",
+     "ext": ".docx",
+     "mtime": 1791300600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "question": "Which one: the final (edited Nov 13) or the draft (Oct 6)?",
+   "details": [
+    "Edited Nov 13 · r › Documents",
+    "Edited Oct 6 · r › Documents"
+   ]
+  },
+  {
+   "hits": [
+    {
+     "name": "Term Paper.docx",
+     "path": "/Users/r/Documents/Term Paper.docx",
+     "ext": ".docx",
+     "mtime": 1794583800.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "Term Paper.pdf",
+     "path": "/Users/r/Documents/Term Paper.pdf",
+     "ext": ".pdf",
+     "mtime": 1794583800.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "question": "Which one: the Word doc or the PDF?",
+   "details": [
+    "Edited Nov 13 · r › Documents",
+    "Edited Nov 13 · r › Documents"
+   ]
+  },
+  {
+   "hits": [
+    {
+     "name": "Retention Plan.pptx",
+     "path": "/Users/r/Documents/Retention Plan.pptx",
+     "ext": ".pptx",
+     "mtime": 1794497400.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "Pricing Change Proposal.pptx",
+     "path": "/Users/r/Documents/Pricing Change Proposal.pptx",
+     "ext": ".pptx",
+     "mtime": 1793979000.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "question": "Which one: “Retention Plan” or “Pricing Change Proposal”?",
+   "details": [
+    "Edited Nov 12 · r › Documents",
+    "Edited Nov 6 · r › Documents"
+   ]
+  },
+  {
+   "hits": [
+    {
+     "name": "Budget.xlsx",
+     "path": "/Users/r/Documents/Work/Budget.xlsx",
+     "ext": ".xlsx",
+     "mtime": 1794324600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "Budget.xlsx",
+     "path": "/Users/r/Downloads/Budget.xlsx",
+     "ext": ".xlsx",
+     "mtime": 1794324600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "question": "Which one: the one in Documents › Work or the one in r › Downloads?",
+   "details": [
+    "Edited Nov 10 · Documents › Work",
+    "Edited Nov 10 · r › Downloads"
+   ]
+  },
+  {
+   "hits": [
+    {
+     "name": "mid_Term_report.docx",
+     "path": "/Users/r/Documents/mid_Term_report.docx",
+     "ext": ".docx",
+     "mtime": 1778340600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "graphpaper.pdf",
+     "path": "/Users/r/Documents/graphpaper.pdf",
+     "ext": ".pdf",
+     "mtime": 1790436600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "Term paper outline.docx",
+     "path": "/Users/r/Documents/Term paper outline.docx",
+     "ext": ".docx",
+     "mtime": 1793892600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "question": "Which one: “mid Term report”, “graphpaper” or “Term paper outline”?",
+   "details": [
+    "Edited May 9 · r › Documents",
+    "Edited Sep 26 · r › Documents",
+    "Edited Nov 5 · r › Documents"
+   ]
+  },
+  {
+   "hits": [
+    {
+     "name": "Report.docx",
+     "path": "/Users/r/Documents/Report.docx",
+     "ext": ".docx",
+     "mtime": 1794756600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "Report (1).docx",
+     "path": "/Users/r/Documents/Report (1).docx",
+     "ext": ".docx",
+     "mtime": 1793028600.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "question": "Which one: the one from Nov 15 or the one from Oct 26?",
+   "details": [
+    "Edited Nov 15 · r › Documents",
+    "Edited Oct 26 · r › Documents"
+   ]
+  }
+ ],
+ "ambiguous": [
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": 0.95,
+     "reasons": []
+    },
+    {
+     "name": "b.docx",
+     "path": "/Users/r/Documents/b.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 0.4,
+     "confidence": 0.2,
+     "reasons": []
+    }
+   ],
+   "topic": true,
+   "ask": false
+  },
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": 0.8,
+     "reasons": []
+    },
+    {
+     "name": "b.docx",
+     "path": "/Users/r/Documents/b.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 0.93,
+     "confidence": 0.75,
+     "reasons": []
+    }
+   ],
+   "topic": true,
+   "ask": true
+  },
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": 0.8,
+     "reasons": [
+      "you picked it for this before"
+     ]
+    },
+    {
+     "name": "b.docx",
+     "path": "/Users/r/Documents/b.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 0.99,
+     "confidence": 0.8,
+     "reasons": []
+    }
+   ],
+   "topic": true,
+   "ask": false
+  },
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": 0.1,
+     "reasons": []
+    },
+    {
+     "name": "b.docx",
+     "path": "/Users/r/Documents/b.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 0.5,
+     "confidence": 0.05,
+     "reasons": []
+    }
+   ],
+   "topic": true,
+   "ask": true
+  },
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "b.docx",
+     "path": "/Users/r/Documents/b.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 0.9,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "topic": true,
+   "ask": true
+  },
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "b.docx",
+     "path": "/Users/r/Documents/b.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 0.5,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "topic": true,
+   "ask": false
+  },
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    },
+    {
+     "name": "b.docx",
+     "path": "/Users/r/Documents/b.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "topic": false,
+   "ask": true
+  },
+  {
+   "hits": [
+    {
+     "name": "a.docx",
+     "path": "/Users/r/Documents/a.docx",
+     "ext": ".docx",
+     "mtime": 1795534200.0,
+     "score": 1.0,
+     "confidence": null,
+     "reasons": []
+    }
+   ],
+   "topic": true,
+   "ask": false
+  }
+ ]
+}

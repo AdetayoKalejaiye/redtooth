@@ -39,6 +39,8 @@ public struct Device: Hashable, Sendable {
     public var endpoints: [Endpoint] = []
     public var wifiAware = false
     public var apnsToken: String?
+    public var alias: String? // the name its owner gave it ("Adetayo's speaker")
+    public var present = true // seen right now (directory entries for claimed devices may be away)
 
     public init(id: String, name: String, kind: String = "other", address: String? = nil, model: String? = nil, shortModel: String? = nil,
                 hasApp: Bool = false, endpoints: [Endpoint] = [], wifiAware: Bool = false) {
@@ -46,7 +48,7 @@ public struct Device: Hashable, Sendable {
         self.hasApp = hasApp; self.endpoints = endpoints; self.wifiAware = wifiAware
     }
 
-    public var label: String { model ?? name }
+    public var label: String { alias ?? model ?? name }
 
     public var json: JSONObject {
         var j: JSONObject = ["id": id, "name": name, "kind": kind, "has_app": hasApp, "endpoints": endpoints.map(\.json),
@@ -57,6 +59,7 @@ public struct Device: Hashable, Sendable {
         if let ownerPhone { j["owner_phone"] = ownerPhone }
         if let ownerName { j["owner_name"] = ownerName }
         if let apnsToken { j["apns_token"] = apnsToken }
+        if let alias { j["alias"] = alias }
         return j
     }
 
@@ -65,6 +68,7 @@ public struct Device: Hashable, Sendable {
                   model: j.str("model"), shortModel: j.str("short_model"), hasApp: j.bool("has_app") ?? false,
                   endpoints: (j.arr("endpoints") ?? []).compactMap { ($0 as? JSONObject).map(Endpoint.init) }, wifiAware: j.bool("wifi_direct") ?? false)
         ownerPhone = j.str("owner_phone"); ownerName = j.str("owner_name"); apnsToken = j.str("apns_token")
+        alias = j.str("alias"); present = j.bool("present") ?? true
     }
 }
 
@@ -116,6 +120,8 @@ public struct FileHit: Hashable, Sendable {
     public var score: Double = 0
     public var snippet = ""
     public var snippetLabel = ""
+    public var confidence: Double? // re-ranker relevance, when it ran
+    public var reasons: [String] = [] // usage: "opened recently", "sent before", …
     public init(id: String, path: String, name: String, kind: String, ext: String, size: Int64, mtime: Double, score: Double = 0) {
         self.id = id; self.path = path; self.name = name; self.kind = kind; self.ext = ext; self.size = size; self.mtime = mtime; self.score = score
     }

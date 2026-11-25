@@ -72,6 +72,45 @@ final class PhonesTests: XCTestCase {
         XCTAssertEqual(countries.map { [$0.iso, $0.cc, $0.trunk, $0.idd] }, table)
     }
 
+    func testRankingAndQuestionsMatchDesktop() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "ranking_fixtures", withExtension: "json"))
+        let fx = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? JSONObject)
+        let now = Date(timeIntervalSince1970: try XCTUnwrap(fx.dbl("now")))
+        let utc = TimeZone(identifier: "UTC")!
+        for case let c as JSONObject in fx.arr("coverage") ?? [] {
+            let got = Ranking.coverageBonus((c.arr("qws") as? [String]) ?? [], name: c.str("name")!, chunk: c.str("chunk")!)
+            XCTAssertEqual(got, c.dbl("bonus")!, accuracy: 1e-6, c.str("name")!)
+        }
+        func hits(_ a: Any?) -> [FileHit] {
+            ((a as? [Any]) ?? []).compactMap { $0 as? JSONObject }.map { h in
+                var f = FileHit(id: "1", path: h.str("path")!, name: h.str("name")!, kind: "document", ext: h.str("ext")!, size: 1, mtime: h.dbl("mtime")!, score: h.dbl("score")!)
+                f.confidence = h.dbl("confidence"); f.reasons = (h.arr("reasons") as? [String]) ?? []
+                return f
+            }
+        }
+        for case let q as JSONObject in fx.arr("questions") ?? [] {
+            let hs = hits(q["hits"])
+            XCTAssertEqual(Clarify.distinguish(hs, now: now, timeZone: utc).0, q.str("question"))
+            XCTAssertEqual(hs.map { Clarify.optionDetail($0, now: now, timeZone: utc) }, (q.arr("details") as? [String]) ?? [])
+        }
+        for case let a as JSONObject in fx.arr("ambiguous") ?? [] {
+            XCTAssertEqual(Clarify.ambiguous(hits(a["hits"]), hasTopic: a.bool("topic")!), a.bool("ask")!)
+        }
+    }
+
+    func testUsageFadesAndRemembersPicks() {
+        var clock = 1_000_000.0
+        let u = UsageStore(now: { clock })
+        u.record("/d/sent.docx", kind: "sent")
+        u.recordPick("term paper", path: "/d/final.docx")
+        let s1 = u.signals(["/d/sent.docx", "/d/final.docx", "/d/never.docx"], query: "Term Papers")
+        XCTAssertGreaterThan(s1["/d/sent.docx"]!.0, 0)
+        XCTAssertGreaterThan(s1["/d/final.docx"]!.1, 0)
+        XCTAssertEqual(s1["/d/never.docx"]!.0, 0)
+        clock += 60 * 86400
+        XCTAssertLessThan(u.signals(["/d/sent.docx"])["/d/sent.docx"]!.0, s1["/d/sent.docx"]!.0 / 4)
+    }
+
     func testDifflibRatio() { XCTAssertEqual((PeopleResolver.ratio("daniel", "danielle") * 1000).rounded(), 857) }
 }
 
