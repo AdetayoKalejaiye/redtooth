@@ -112,20 +112,34 @@ data class Reply(
     var timings: MutableMap<String, Double> = mutableMapOf(),
 )
 
+/** Same rules as redtooth/phones.py: E.164 everywhere; the country only matters for numbers written without one. */
 object Phones {
-    private const val DEFAULT_CC = "1"
+    const val DEFAULT_COUNTRY = "US"
+    val byIso: Map<String, Country> = COUNTRIES.associateBy { it.iso }
 
-    /** E.164-style normalization, identical to the desktop's normalize_phone. */
-    fun normalize(raw: String, defaultCc: String = DEFAULT_CC): String {
-        if (raw.isBlank()) return ""
-        val plus = raw.trim().startsWith("+")
-        val digits = raw.filter { it.isDigit() }
-        if (plus) return "+$digits"
-        if (digits.startsWith("00")) return "+" + digits.substring(2)
-        if (digits.length == 10 && defaultCc == "1") return "+1$digits"
-        if (digits.length == 11 && digits.startsWith("1") && defaultCc == "1") return "+$digits"
-        return "+$defaultCc$digits"
+    /** The user's country (the app sets it from the SIM / region at start-up). */
+    @Volatile var country: String = DEFAULT_COUNTRY
+        set(v) { if (v.uppercase() in byIso) field = v.uppercase() }
+
+    fun normalize(raw: String, country: String? = null): String {
+        if (raw.isEmpty()) return ""
+        val c = byIso[(country ?: this.country).uppercase()] ?: byIso.getValue(DEFAULT_COUNTRY)
+        val start = raw.indexOfFirst { it == '+' || it.isAsciiDigit() }  // skip labels like "tel:"
+        if (start < 0) return ""
+        val s = raw.substring(start)
+        val digits = s.filter { it.isAsciiDigit() }
+        if (digits.isEmpty()) return ""
+        if (s.startsWith("+")) return "+$digits"
+        for (idd in listOf(c.idd, "00")) {
+            if (idd.isNotEmpty() && digits.startsWith(idd) && digits.length > idd.length + 6) return "+" + digits.substring(idd.length)
+        }
+        if (c.cc == "1") return if (digits.length == 11 && digits.startsWith("1")) "+$digits" else "+1$digits"
+        if (c.trunk.isNotEmpty() && digits.startsWith(c.trunk)) return "+" + c.cc + digits.substring(c.trunk.length)
+        if (c.trunk.isNotEmpty() && digits.startsWith(c.cc) && digits.length >= c.cc.length + 8) return "+$digits"
+        return "+" + c.cc + digits
     }
+
+    private fun Char.isAsciiDigit() = this in '0'..'9'
 
     /** Contact discovery sends these hashes, never raw numbers. */
     fun hash(phone: String): String = sha256Hex(("redtooth:" + normalize(phone)).toByteArray())

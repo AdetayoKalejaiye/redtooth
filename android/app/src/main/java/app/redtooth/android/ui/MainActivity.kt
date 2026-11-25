@@ -44,6 +44,8 @@ import app.redtooth.core.Device
 import app.redtooth.core.FileHit
 import app.redtooth.core.IncomingOffer
 import app.redtooth.core.Person
+import app.redtooth.core.Phones
+import app.redtooth.core.COUNTRIES
 import app.redtooth.core.Reply
 import app.redtooth.core.Transfer
 
@@ -262,13 +264,19 @@ fun Onboarding(vm: PanelViewModel, s: PanelState) {
     var phone by remember { mutableStateOf(Graph.settings.phone) }
     var dir by remember { mutableStateOf(Graph.settings.directoryUrl) }
     var code by remember { mutableStateOf("") }
+    var country by remember { mutableStateOf(Graph.settings.country) }
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Redtooth", fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text("Friends find your devices by your phone number. We'll text you a code to confirm it's yours.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(name, { name = it }, label = { Text("Your name") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(phone, { phone = it }, label = { Text("Phone number") }, modifier = Modifier.fillMaxWidth())
+        CountryPicker(country) { country = it }
+        val cc = Phones.byIso[country]?.cc ?: "1"
+        OutlinedTextField(phone, { phone = it }, label = { Text("Phone number") }, prefix = { if (!phone.trimStart().startsWith("+")) Text("+$cc ") },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
+            supportingText = { Text("Contacts saved without a country code are read as ${Phones.byIso[country]?.name ?: country}.") },
+            modifier = Modifier.fillMaxWidth())
         OutlinedTextField(dir, { dir = it }, label = { Text("Directory") }, modifier = Modifier.fillMaxWidth(), supportingText = { Text("Your group's Redtooth directory") })
-        if (!s.verificationSent) Button(onClick = { vm.requestCode(name, phone, dir) }, enabled = name.isNotBlank() && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Send code") }
+        if (!s.verificationSent) Button(onClick = { vm.requestCode(name, phone, dir, country) }, enabled = name.isNotBlank() && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Send code") }
         else {
             OutlinedTextField(code, { code = it }, label = { Text("Code") }, modifier = Modifier.fillMaxWidth())
             Button(onClick = { vm.verify(code) }, enabled = code.length >= 4, modifier = Modifier.fillMaxWidth()) { Text("Verify") }
@@ -276,3 +284,31 @@ fun Onboarding(vm: PanelViewModel, s: PanelState) {
         s.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
+
+/** Country for phone numbers: searchable dropdown of every country Redtooth knows the rules for. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CountryPicker(iso: String, onPick: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val current = Phones.byIso[iso]
+    ExposedDropdownMenuBox(open, { open = it }) {
+        OutlinedTextField(
+            value = if (open) query else current?.let { "${flag(it.iso)} ${it.name} (+${it.cc})" } ?: iso,
+            onValueChange = { query = it; open = true },
+            label = { Text("Country") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
+            singleLine = true,
+            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+        )
+        val q = query.trim().lowercase().removePrefix("+")
+        val matches = COUNTRIES.sortedBy { it.name }.filter { q.isEmpty() || it.name.lowercase().startsWith(q) || it.iso.lowercase() == q || it.cc == q }
+        ExposedDropdownMenu(open, { open = false; query = "" }) {
+            matches.take(60).forEach { c ->
+                DropdownMenuItem(text = { Text("${flag(c.iso)} ${c.name}  +${c.cc}") }, onClick = { onPick(c.iso); open = false; query = "" })
+            }
+        }
+    }
+}
+
+private fun flag(iso: String) = iso.uppercase().map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")

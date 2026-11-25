@@ -40,7 +40,7 @@ object CoreSuite {
     fun runAll(): Int {
         failures.clear(); passed = 0; skipped = 0
         println("Redtooth core")
-        json(); phones(); intents(); people(); agentFlows(); transfers(); interop()
+        json(); phones(); countries(); intents(); people(); agentFlows(); transfers(); interop()
         println("\n$passed passed, ${failures.size} failed, $skipped skipped")
         failures.forEach { println("FAIL $it") }
         return failures.size
@@ -59,6 +59,24 @@ object CoreSuite {
             "0049 30 1234567" to ("+49301234567" to "7f6a8bcfa4ab7486"), "15550100" to ("+115550100" to "d3fa465069710934"),
         )
         for ((raw, e) in expected) { eq(Phones.normalize(raw), e.first, raw); eq(Phones.hash(raw).take(16), e.second, "hash $raw") }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun countries() {
+        val text = javaClass.getResourceAsStream("/phone_fixtures.json")?.bufferedReader()?.readText()
+            ?: File("src/test/resources/phone_fixtures.json").takeIf { it.exists() }?.readText()
+            ?: File("android/core/src/test/resources/phone_fixtures.json").readText()
+        val fx = Json.obj(text)
+        val cases = fx.list("cases")!!.map { it as Map<String, Any?> }
+        check("country rules match the desktop on ${cases.size} numbers") {
+            val bad = cases.filter { Phones.normalize(it.str("raw")!!, it.str("country")) != it.str("e164") }
+                .map { "${it.str("raw")} (${it.str("country")}): ${Phones.normalize(it.str("raw")!!, it.str("country"))} != ${it.str("e164")}" }
+            eq(bad, emptyList<String>(), "mismatches")
+        }
+        check("country table matches the desktop") {
+            val table = fx.list("countries")!!.map { it as Map<String, Any?> }
+            eq(COUNTRIES.map { listOf(it.iso, it.cc, it.trunk, it.idd) }, table.map { listOf(it.str("iso"), it.str("cc"), it.str("trunk"), it.str("idd")) })
+        }
     }
 
     @Suppress("UNCHECKED_CAST")

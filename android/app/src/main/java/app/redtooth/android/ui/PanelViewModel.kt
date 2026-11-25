@@ -121,8 +121,9 @@ class PanelViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ onboarding
-    fun requestCode(name: String, phone: String, directory: String) = viewModelScope.launch(Dispatchers.IO) {
+    fun requestCode(name: String, phone: String, directory: String, country: String) = viewModelScope.launch(Dispatchers.IO) {
         val s = Graph.settings
+        s.country = country // before the phone number, which is read with it
         s.name = name.trim(); s.phone = phone; s.directoryUrl = directory.trim()
         Graph.init(getApplication()) // rebuild clients with the new settings
         val r = runCatching { Graph.directory.startVerification(s.phone) }

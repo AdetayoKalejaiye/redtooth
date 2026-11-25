@@ -28,15 +28,20 @@ import java.util.concurrent.TimeUnit
 class RedtoothApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        Phones.country = Settings(this).country // before anything reads contacts
         Graph.init(this)
         Notifications.createChannels(this)
     }
 }
 
 /** Registration and preferences. */
-class Settings(ctx: Context) {
+class Settings(private val ctx: Context) {
     private val p = ctx.getSharedPreferences("redtooth", Context.MODE_PRIVATE)
     var name: String get() = p.getString("name", "") ?: ""; set(v) = p.edit().putString("name", v).apply()
+    /** Country for numbers saved without a country code: chosen at sign-up, defaulting to the SIM, then the network, then the language region. */
+    var country: String
+        get() = p.getString("country", null) ?: detectCountry(ctx)
+        set(v) { if (v.uppercase() in Phones.byIso) { p.edit().putString("country", v.uppercase()).apply(); Phones.country = v } }
     var phone: String get() = p.getString("phone", "") ?: ""; set(v) = p.edit().putString("phone", Phones.normalize(v)).apply()
     var directoryUrl: String get() = p.getString("directory", BuildConfig.DEFAULT_DIRECTORY) ?: BuildConfig.DEFAULT_DIRECTORY; set(v) = p.edit().putString("directory", v).apply()
     var token: String? get() = p.getString("token", null); set(v) = p.edit().putString("token", v).apply()
@@ -44,6 +49,12 @@ class Settings(ctx: Context) {
     val deviceName: String get() = "${name.substringBefore(' ').ifEmpty { "My" }}'s ${Build.MODEL}"
     var sharedDeviceIds: Set<String> get() = p.getStringSet("shared", emptySet()) ?: emptySet(); set(v) = p.edit().putStringSet("shared", v).apply()
     val registered get() = name.isNotEmpty() && phone.isNotEmpty() && token != null
+}
+
+fun detectCountry(ctx: Context): String {
+    val tm = ctx.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+    return listOf(tm?.simCountryIso, tm?.networkCountryIso, java.util.Locale.getDefault().country)
+        .map { it.orEmpty().uppercase() }.firstOrNull { it in Phones.byIso } ?: Phones.DEFAULT_COUNTRY
 }
 
 /** Incoming offers wait here until the user answers from the notification or the panel. */
