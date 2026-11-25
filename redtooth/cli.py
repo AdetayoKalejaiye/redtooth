@@ -168,6 +168,12 @@ async def cmd_serve(args, set_status=None) -> None:
     roots = [Path(r).expanduser() for r in cfg.get("roots", [])] or default_roots()
     index = FileIndex(HOME / "index.db", load_embedder(args.embedder))
     print(f"Search: {index.embedder.name}", flush=True)
+    from .files.rerank import RerankerHolder
+    from .files.usage import Usage
+
+    index.usage = Usage(HOME / "usage.db")  # recently opened / sent / picked
+    index.reranker = RerankerHolder()
+    index.reranker.load()  # downloads the re-ranker (~120 MB) in the background the first time
     if sys.platform.startswith("win"):
         from .bt.windows import install_command, missing_packages
 
@@ -243,7 +249,10 @@ async def cmd_serve(args, set_status=None) -> None:
         ip = (lan_addresses() or ["127.0.0.1"])[0]
         return {"directory_hosted": hosted is not None,
                 "directory_url": f"http://{ip}:{cfg.get('directory_port', 8790)}" if hosted is not None else cfg.get("directory"),
-                "name": cfg.get("name"), "phone": cfg.get("phone"), "version": "0.2"}
+                "name": cfg.get("name"), "phone": cfg.get("phone"), "version": "0.3",
+                "search": {"embedder": index.embedder.name,
+                           "reranker": "ready" if index.reranker and index.reranker.get() else (index.reranker.error if index.reranker and index.reranker.error else "downloading"),
+                           "usage": "on"}}
 
     async def tray_status() -> None:
         """Keep the tray tooltip/menu line current: what's playing, what's happening."""

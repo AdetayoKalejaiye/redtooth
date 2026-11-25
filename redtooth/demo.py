@@ -113,6 +113,10 @@ async def build_demo(root: Optional[str] = None, daniel_auto_accept: float = 2.5
     await directory.register(PRIYA, "Priya Shah")
 
     index = FileIndex(root_p / "index.db", load_embedder(embedder))
+    from .files.usage import Usage
+
+    index.usage = Usage(":memory:")
+    index.usage.recent_source = dict  # the demo world has no OS history
     await asyncio.get_running_loop().run_in_executor(None, index.scan, [root_p / "Documents", root_p / "Downloads"])
     store = Store(root_p / "state.db")
     store.remember(world.radios["bt:airpods"].device, ALEX, "Alex Rivera")

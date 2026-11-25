@@ -198,6 +198,8 @@ class Agent:
         if q.kind == "choose_file":
             hit: FileHit = opt.payload
             self.ctx.set_file(hit)
+            if self.index.usage is not None and st.get("query"):
+                self.index.usage.record_pick(st["query"], hit.path)  # next time this request goes straight there
             if st.get("person"):
                 return await self._start_send(hit, st["person"], st.get("device"), st.get("t0"))
             return Reply(f"Selected {hit.name}. Who should I send it to?", files=[hit])
@@ -429,18 +431,22 @@ class Agent:
         return f" I'm still indexing older files ({ix.status.done:,} of {ix.status.queued:,}), so I may have missed some."
 
     def _file_ambiguous(self, fq: FileQuery, hits: list[FileHit]) -> bool:
-        if len(hits) < 2:
-            return False
-        if not (fq.topic or fq.names):
-            return True
-        return hits[1].score >= 0.85
+        from .clarify import ambiguous
+
+        return ambiguous(hits, bool(fq.topic or fq.names))
 
     def _file_question(self, fq: FileQuery, hits: list[FileHit], state: dict) -> Question:
         noun = KIND_NOUN.get(fq.kinds[0], "file") if fq.kinds else "file"
         n = len(hits[:3])
         words = {2: "Two", 3: "Three"}.get(n, str(n))
-        prompt = f"Which {noun}? {words} were edited {fq.time_label}." if fq.time_label else f"Which {noun} did you mean?"
-        opts = [Option(f"f{h.file_id}", h.name.rsplit(".", 1)[0], f"Edited {when_label(h.mtime)}" + (f" · {h.snippet_label}" if h.snippet_label else ""), h) for h in hits[:3]]
+        from .clarify import distinguish, option_detail
+
+        if fq.time_label and not (fq.topic or fq.names):
+            prompt = f"Which {noun}? {words} were edited {fq.time_label}."
+        else:
+            prompt = distinguish(hits[:3])[0]  # says what differs: the final or the draft, the PDF or the Word doc…
+        opts = [Option(f"f{h.file_id}", h.name.rsplit(".", 1)[0], option_detail(h), h) for h in hits[:3]]
+        state = {**state, "query": " ".join([fq.topic] + fq.names).strip()}
         q = Question(new_id("q_"), "choose_file", prompt, opts, state)
         self.ctx.pending = q
         return q
@@ -535,6 +541,8 @@ class Agent:
                 return Reply(f"iPhones don't accept Bluetooth file transfers. Install Redtooth on {whose} {dest.label()}, or use AirDrop.", ok=False, files=[hit])
             self.ctx.device = dest
             t = self.sender.start_bluetooth(hit.path, person, dest, self.bt.push_file)
+            if self.index.usage is not None:
+                self.index.usage.record(hit.path, "sent")
             self.ctx.last_transfer_id = t.id
             return Reply(f"Sending {hit.name} to {whose} {drop_owner(dest.label(), person.first)} over Bluetooth. Tap Accept on it when it asks.", person=person, files=[hit],
                          transfer_id=t.id, status="Waiting for you" if person.is_self else f"Waiting for {person.first}")
@@ -545,6 +553,8 @@ class Agent:
             return Reply(f"None of {possessive(person.first)} devices are reachable right now. I'll keep the file selected.", person=person, files=[hit], ok=False)
         self.ctx.device = dest
         t = self.sender.start(hit.path, person, dest)
+        if self.index.usage is not None:
+            self.index.usage.record(hit.path, "sent")
         self.ctx.last_transfer_id = t.id
         return Reply(f"Sending {hit.name} to {possessive(person.first)} {dest.label()}.", person=person, files=[hit], transfer_id=t.id, status=f"Waiting for {person.first}")
 

@@ -156,6 +156,8 @@ class FileHit:
     snippet: str = ""
     snippet_label: str = ""  # e.g. "Slide 3"
     why: list[str] = field(default_factory=list)  # "name", "content", "meaning", "time"
+    confidence: Optional[float] = None  # re-ranker's relevance (0..1), when it ran
+    reasons: list[str] = field(default_factory=list)  # usage: "opened recently", "sent before", …
 
     def to_dict(self) -> dict[str, Any]:
         from .util import human_bytes, when_label
