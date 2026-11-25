@@ -22,6 +22,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
@@ -39,6 +40,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Share sheet: the shared file arrives in the panel already selected -->
@@ -53,6 +55,12 @@
         <service android:name=".net.RedtoothService" android:exported="false" android:foregroundServiceType="connectedDevice" />
 
         <receiver android:name=".notify.OfferActionReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!-- Quick Settings tile: current audio output; tap opens the panel -->
         <service android:name=".ui.RedtoothTileService" android:exported="true" android:label="Redtooth" android:icon="@drawable/ic_redtooth"

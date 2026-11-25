@@ -34,6 +34,13 @@ data class PanelState(
     val audioIsBluetooth: Boolean = false,
     val audioDevices: List<Device> = emptyList(),
     val sharedIds: Set<String> = emptySet(),
+    val aliases: Map<String, String> = emptyMap(),
+    val paired: List<Device> = emptyList(),
+    val nearby: List<Device> = emptyList(),
+    val scanning: Boolean = false,
+    val radio: String = "on",
+    val devicesOpen: Boolean = false,
+    val startAtBoot: Boolean = true,
     val people: List<Person> = emptyList(),
     val feed: List<FeedItem> = emptyList(),
     val selected: FileHit? = null,
@@ -68,12 +75,15 @@ class PanelViewModel(app: Application) : AndroidViewModel(app) {
         val bt = Graph.bluetooth
         val out = runCatching { bt.audioOutput() }.getOrNull()
         val paired = runCatching { bt.paired() }.getOrDefault(emptyList())
-        val audio = (agent.remembered.remembered() + paired).filter { it.kind in AUDIO_KINDS }.associateBy { it.id }.values
-            .sortedWith(compareBy({ !(out != null && bt.outputMatches(out, it)) }, { !it.connected }, { it.label() }))
+        // Main card: only audio devices connected right now; everything else is in Your devices.
+        val audio = paired.filter { it.kind in AUDIO_KINDS && it.connected && !(out != null && bt.outputMatches(out, it)) }
+        Graph.refreshMine(agent)
         state.update {
             it.copy(
                 audioOutput = out?.name ?: "Phone speaker", audioIsBluetooth = out?.transport == "bluetooth",
-                audioDevices = audio, sharedIds = Graph.settings.sharedDeviceIds,
+                audioDevices = audio, sharedIds = Graph.settings.sharedDeviceIds, aliases = Graph.settings.deviceAliases,
+                paired = paired.sortedWith(compareBy({ it.kind !in AUDIO_KINDS }, { !it.connected }, { it.name })),
+                radio = runCatching { bt.radioState() }.getOrDefault("on"), startAtBoot = Graph.settings.startAtBoot,
                 people = agent.people.allPeople().filter { p -> p.hasApp || p.nearby }.take(8),
                 selected = agent.ctx.file, hasFolders = Graph.files.folders.isNotEmpty(), busy = null,
             )
@@ -84,6 +94,7 @@ class PanelViewModel(app: Application) : AndroidViewModel(app) {
         userText?.let { push(FeedItem.User(it)) }
         val r = withContext(Dispatchers.IO) { runCatching(call).getOrElse { e -> Reply("Something went wrong: ${e.message}", ok = false) } }
         push(FeedItem.Agent(r))
+        if (r.action == "bluetooth_share") r.files.firstOrNull()?.let { Graph.bluetoothShares.tryEmit(it) }
         refresh()
     }
 
@@ -113,12 +124,40 @@ class PanelViewModel(app: Application) : AndroidViewModel(app) {
 
     fun addFolder(tree: Uri) = viewModelScope.launch(Dispatchers.IO) { Graph.files.addFolder(tree); refresh() }
 
-    /** Let contacts find these headphones by asking for them ("connect to Daniel's headphones"). */
-    fun toggleShare(d: Device) {
+    // ------------------------------------------------------------------ devices
+    fun openDevices(open: Boolean) = state.update { it.copy(devicesOpen = open) }
+
+    /** "Pair new device": discovery for ~10 s; headphones in pairing mode, phones on their Bluetooth screen. */
+    fun scan() = viewModelScope.launch(Dispatchers.IO) {
+        state.update { it.copy(scanning = true, nearby = emptyList()) }
+        val found = runCatching { Graph.bluetooth.scan(10.0) }.getOrDefault(emptyList())
+        state.update { it.copy(scanning = false, nearby = found) }
+    }
+
+    fun pair(d: Device) = run(null) {
+        val ok = Graph.bluetooth.pair(d)
+        state.update { s -> s.copy(nearby = s.nearby.filter { it.id != d.id }) }
+        if (!ok) Reply("${d.name} didn't accept pairing. Put it back in pairing mode and try again.", ok = false)
+        else if (d.kind in AUDIO_KINDS) Graph.agent?.connectDevice(d.id) ?: Reply("Paired ${d.name}.")
+        else Reply("Paired ${d.name}.")
+    }
+
+    fun disconnect(d: Device) = run(null) {
+        if (Graph.bluetooth.disconnect(d)) Reply("Disconnected ${d.label()}.", status = "Disconnected")
+        else Reply("${d.label()} is still connected. Android doesn't let apps disconnect it on this phone; use Bluetooth settings.", ok = false)
+    }
+
+    /** Mark a paired device as yours (contacts can ask for it by name), with the name friends use. */
+    fun setMine(d: Device, mine: Boolean, alias: String? = null) {
         val s = Graph.settings
-        s.sharedDeviceIds = if (d.id in s.sharedDeviceIds) s.sharedDeviceIds - d.id else s.sharedDeviceIds + d.id
+        s.sharedDeviceIds = if (mine) s.sharedDeviceIds + d.id else s.sharedDeviceIds - d.id
+        val a = s.deviceAliases.toMutableMap()
+        if (mine && !alias.isNullOrBlank()) a[d.id] = alias.trim() else if (!mine || alias != null) a.remove(d.id)
+        s.deviceAliases = a
         refresh()
     }
+
+    fun setStartAtBoot(on: Boolean) { Graph.settings.startAtBoot = on; refresh() }
 
     // ------------------------------------------------------------------ onboarding
     fun requestCode(name: String, phone: String, directory: String, country: String) = viewModelScope.launch(Dispatchers.IO) {

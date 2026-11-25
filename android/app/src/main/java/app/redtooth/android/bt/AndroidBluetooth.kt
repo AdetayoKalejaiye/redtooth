@@ -41,12 +41,30 @@ class AndroidBluetooth(private val ctx: Context) : BluetoothPort {
     private val adapter: BluetoothAdapter? = (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
     private val audio = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     @Volatile private var a2dp: BluetoothA2dp? = null
+    @Volatile private var headset: BluetoothProfile? = null
 
     init {
         adapter?.getProfileProxy(ctx, object : BluetoothProfile.ServiceListener {
             override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) { a2dp = proxy as BluetoothA2dp }
             override fun onServiceDisconnected(profile: Int) { a2dp = null }
         }, BluetoothProfile.A2DP)
+        adapter?.getProfileProxy(ctx, object : BluetoothProfile.ServiceListener {
+            override fun onServiceConnected(profile: Int, proxy: BluetoothProfile) { headset = proxy }
+            override fun onServiceDisconnected(profile: Int) { headset = null }
+        }, BluetoothProfile.HEADSET)
+    }
+
+    /** Really connected right now: an audio profile is connected, or (phones, computers) the link is up. */
+    private fun isConnected(d: BluetoothDevice): Boolean {
+        if (a2dp?.connectedDevices?.any { it.address == d.address } == true) return true
+        if (headset?.connectedDevices?.any { it.address == d.address } == true) return true
+        return try { BluetoothDevice::class.java.getMethod("isConnected").invoke(d) as? Boolean ?: false } catch (_: Throwable) { false }
+    }
+
+    override fun radioState(): String = when {
+        adapter == null -> "missing"
+        adapter.isEnabled -> "on"
+        else -> "off"
     }
 
     val available get() = adapter?.isEnabled == true
@@ -65,7 +83,7 @@ class AndroidBluetooth(private val ctx: Context) : BluetoothPort {
     }
 
     private fun toDevice(d: BluetoothDevice, source: String, rssi: Int? = null): Device {
-        val connected = a2dp?.connectedDevices?.any { it.address == d.address } == true
+        val connected = isConnected(d)
         return DeviceNames.enrich(Device(
             id = "bt:${d.address}", name = d.name ?: d.address, kind = kindOf(d), address = d.address,
             paired = d.bondState == BluetoothDevice.BOND_BONDED, connected = connected,
@@ -96,7 +114,7 @@ class AndroidBluetooth(private val ctx: Context) : BluetoothPort {
             ad.cancelDiscovery()
             ctx.unregisterReceiver(rx)
         }
-        return found.values.toList()
+        return found.values.filter { !it.paired }.sortedWith(compareBy({ it.kind !in setOf("headphones", "speaker") }, { -(it.rssi ?: -100) }))
     }
 
     override fun pair(dev: Device): Boolean {
@@ -124,7 +142,7 @@ class AndroidBluetooth(private val ctx: Context) : BluetoothPort {
 
     override fun connect(dev: Device): Boolean {
         val d = adapter?.getRemoteDevice(dev.address ?: return false) ?: return false
-        fun isConnected() = a2dp?.connectedDevices?.any { it.address == d.address } == true
+        fun isConnected() = isConnected(d)
         repeat(16) { if (isConnected()) return true; Thread.sleep(500) } // Android usually connects a freshly paired headset itself
         try { // Not public API; allowed on some versions and devices, refused on others.
             BluetoothA2dp::class.java.getMethod("connect", BluetoothDevice::class.java).invoke(a2dp, d)
@@ -134,14 +152,29 @@ class AndroidBluetooth(private val ctx: Context) : BluetoothPort {
         return false
     }
 
-    override fun disconnect(dev: Device): Boolean = try {
-        val d = adapter!!.getRemoteDevice(dev.address)
-        BluetoothA2dp::class.java.getMethod("disconnect", BluetoothDevice::class.java).invoke(a2dp, d) as? Boolean ?: false
-    } catch (_: Throwable) { false }
+    override fun disconnect(dev: Device): Boolean {
+        val d = adapter?.getRemoteDevice(dev.address ?: return false) ?: return false
+        try { BluetoothA2dp::class.java.getMethod("disconnect", BluetoothDevice::class.java).invoke(a2dp, d) } catch (_: Throwable) {}
+        repeat(12) { if (!isConnected(d)) return true; Thread.sleep(500) } // report what Android says, not what the call returned
+        return false
+    }
 
     override fun audioOutput(): AudioOutput {
+        // Android 13+: ask where media actually plays. Earlier versions only list what's connected, so a connected
+        // Bluetooth device counts as the output only while Android says media goes over Bluetooth.
+        if (Build.VERSION.SDK_INT >= 33) {
+            val attrs = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).build()
+            val d = runCatching { audio.getAudioDevicesForAttributes(attrs).firstOrNull() }.getOrNull()
+            if (d != null) {
+                val bt = d.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || d.type == AudioDeviceInfo.TYPE_BLE_HEADSET || d.type == AudioDeviceInfo.TYPE_BLE_SPEAKER
+                return AudioOutput(if (d.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) "Phone speaker" else d.productName.toString(), d.address.takeIf { bt && it.isNotEmpty() },
+                    if (bt) "bluetooth" else if (d.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) "builtin" else "usb")
+            }
+        }
         val outs = audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        @Suppress("DEPRECATION")
         val bt = outs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || (Build.VERSION.SDK_INT >= 31 && it.type == AudioDeviceInfo.TYPE_BLE_HEADSET) }
+            ?.takeIf { audio.isBluetoothA2dpOn || Build.VERSION.SDK_INT >= 31 }
         if (bt != null) return AudioOutput(bt.productName.toString(), if (Build.VERSION.SDK_INT >= 28) bt.address else null, "bluetooth")
         val wired = outs.firstOrNull { it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
         return AudioOutput(wired?.productName?.toString() ?: "Phone speaker", null, if (wired != null) "usb" else "builtin")

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.redtooth.android.Graph
 import app.redtooth.android.notify.Notifications
+import app.redtooth.core.AUDIO_KINDS
 import app.redtooth.core.Device
 import app.redtooth.core.FileHit
 import app.redtooth.core.IncomingOffer
@@ -71,6 +72,10 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(i: Intent?) {
         i?.getStringExtra(EXTRA_SELECT)?.let { vm.select(Uri.parse(it)) }
+        when (i?.getStringExtra("open")) {  // app shortcuts (long-press the icon) and the notification
+            "scan" -> vm.scan()
+            "devices" -> vm.openDevices(true)
+        }
     }
 
     @Composable private fun dynamicLightColorSchemeOr() = if (Build.VERSION.SDK_INT >= 31) dynamicLightColorScheme(LocalContext.current) else lightColorScheme()
@@ -102,7 +107,16 @@ fun Panel(vm: PanelViewModel, s: PanelState) {
     LaunchedEffect(s.feed.size) { if (s.feed.isNotEmpty()) list.animateScrollToItem(list.layoutInfo.totalItemsCount) }
 
     Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        AudioCard(s, onConnect = vm::connect, onShare = vm::toggleShare, openSettings = { ctx.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) })
+        // "Send it to my phone" for a phone without Redtooth: the system Bluetooth share (the other phone shows Accept).
+        LaunchedEffect(Unit) {
+            Graph.bluetoothShares.collect { hit ->
+                val send = Intent(Intent.ACTION_SEND).setType("*/*").putExtra(Intent.EXTRA_STREAM, Uri.parse(hit.path)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                runCatching { ctx.startActivity(Intent(send).setPackage("com.android.bluetooth")) }
+                    .onFailure { ctx.startActivity(Intent.createChooser(send, "Send ${hit.name} with Bluetooth")) }
+            }
+        }
+        AudioCard(s, vm, openSettings = { ctx.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) })
+        if (s.devicesOpen) DevicesSheet(s, vm)
         PeopleCard(s.people, onSend = { p -> if (s.selected == null) { vm.sendAfterPick = p; pickFile.launch(arrayOf("*/*")) } else vm.sendTo(p) })
         s.selected?.let { SelectedFile(it) }
         val indexing by produceState(Graph.files.indexing()) { while (true) { value = Graph.files.indexing(); kotlinx.coroutines.delay(1000) } }
@@ -127,38 +141,130 @@ fun Panel(vm: PanelViewModel, s: PanelState) {
 }
 
 @Composable
-private fun AudioCard(s: PanelState, onConnect: (Device) -> Unit, onShare: (Device) -> Unit, openSettings: () -> Unit) {
+private fun AudioCard(s: PanelState, vm: PanelViewModel, openSettings: () -> Unit) {
     ElevatedCard(shape = RoundedCornerShape(24.dp)) {
         Column(Modifier.padding(16.dp)) {
+            if (s.radio == "off") {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 10.dp)) {
+                    Text("Bluetooth is off.", Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = openSettings) { Text("Turn on") }
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
                     Icon(if (s.audioIsBluetooth) Icons.Default.Headphones else Icons.Default.VolumeUp, null, tint = MaterialTheme.colorScheme.onPrimary)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Audio output", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Playing through", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(s.audioOutput, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(s.busy ?: if (s.audioIsBluetooth) "Connected" else "This phone", style = MaterialTheme.typography.labelMedium,
+                    Text(s.busy ?: if (s.audioIsBluetooth) "Bluetooth" else "This phone", style = MaterialTheme.typography.labelMedium,
                         color = if (s.busy != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            s.audioDevices.filter { it.name != s.audioOutput }.take(4).forEach { d ->
+            // Only what's connected right now.
+            s.audioDevices.take(3).forEach { d ->
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(if (d.kind == "speaker") Icons.Default.Speaker else Icons.Default.Headphones, null, Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(d.label(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
-                        val owner = d.ownerName?.takeIf { it != Graph.settings.name }?.substringBefore(' ')?.let { "$it's · " } ?: ""
-                        Text(owner + if (d.connected) "Connected" else if (d.paired) "Paired" else "Remembered", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    if (d.paired && (d.ownerName == null || d.ownerName == Graph.settings.name)) {
-                        TextButton(onClick = { onShare(d) }) { Text(if (d.id in s.sharedIds) "Shared" else "Share") }
-                    }
-                    FilledTonalButton(onClick = { onConnect(d) }) { Text("Connect") }
+                DeviceRow(d, s, subtitle = "Connected") {
+                    FilledTonalButton(onClick = { vm.connect(d) }) { Text("Use") }
+                    TextButton(onClick = { vm.disconnect(d) }) { Text("Disconnect") }
+                }
+            }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            val mineCount = s.sharedIds.count { id -> s.paired.any { it.id == id } }
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { vm.openDevices(true) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Headphones, null, Modifier.size(20.dp)); Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Your devices", fontWeight = FontWeight.SemiBold)
+                    Text("${if (mineCount > 0) "$mineCount marked as yours" else "Mark which are yours"} · ${s.paired.size} paired with this phone",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Default.ChevronRight, null)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+                FilledTonalButton(onClick = vm::scan, enabled = !s.scanning && s.radio != "off") { Text(if (s.scanning) "Looking…" else if (s.nearby.isNotEmpty()) "Look again" else "Pair new device") }
+                Spacer(Modifier.width(10.dp))
+                Text(if (s.scanning) "Headphones: pairing mode. Phones: open their Bluetooth screen." else if (s.nearby.isNotEmpty()) "${s.nearby.size} ready to pair" else "",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            s.nearby.take(6).forEach { d ->
+                HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                DeviceRow(d, s, subtitle = kindLabel(d.kind) + if ((d.rssi ?: -99) > -65) " · close by" else " · in range") {
+                    Button(onClick = { vm.pair(d) }) { Text("Pair") }
                 }
             }
             if (s.busy == "Not connected") TextButton(onClick = openSettings) { Text("Open Bluetooth settings") }
+        }
+    }
+}
+
+private fun kindLabel(k: String) = mapOf("headphones" to "Headphones", "earbuds" to "Earbuds", "speaker" to "Speaker", "phone" to "Phone", "laptop" to "Computer",
+    "desktop" to "Computer", "tablet" to "Tablet")[k] ?: "Device"
+
+@Composable
+private fun DeviceRow(d: Device, s: PanelState, subtitle: String, actions: @Composable RowScope.() -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(when (d.kind) { "speaker" -> Icons.Default.Speaker; "phone" -> Icons.Default.Smartphone; "laptop", "desktop" -> Icons.Default.Laptop; else -> Icons.Default.Headphones }, null, Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(s.aliases[d.id] ?: d.label(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        actions()
+    }
+}
+
+/** Your devices (claimed, with the name friends use) and everything paired with this phone. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DevicesSheet(s: PanelState, vm: PanelViewModel) {
+    ModalBottomSheet(onDismissRequest = { vm.openDevices(false) }) {
+        LazyColumn(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                Text("Your devices", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("The headphones, speakers and phone that belong to you. A contact who uses Redtooth can then say “connect to ${Graph.settings.name.substringBefore(' ')}'s speaker” and their Redtooth knows exactly which one you mean. Nothing is shared until you add it here.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val mine = s.paired.filter { it.id in s.sharedIds }
+            if (mine.isEmpty()) item { Text("None yet. Pick yours from the list below.", style = MaterialTheme.typography.bodySmall) }
+            items(mine) { d ->
+                var alias by remember(d.id) { mutableStateOf(s.aliases[d.id] ?: "") }
+                Column {
+                    DeviceRow(d, s, subtitle = kindLabel(d.kind) + if (d.connected) " · Connected" else " · Not connected") {
+                        if (d.kind in AUDIO_KINDS) {
+                            if (d.connected) TextButton(onClick = { vm.disconnect(d) }) { Text("Disconnect") } else FilledTonalButton(onClick = { vm.connect(d) }) { Text("Connect") }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 30.dp)) {
+                        OutlinedTextField(alias, { alias = it }, Modifier.weight(1f), singleLine = true, label = { Text("Name friends use") },
+                            placeholder = { Text("${Graph.settings.name.substringBefore(' ')}'s ${kindLabel(d.kind).lowercase()}") })
+                        TextButton(onClick = { vm.setMine(d, true, alias) }) { Text("Save") }
+                        TextButton(onClick = { vm.setMine(d, false) }) { Text("Remove") }
+                    }
+                }
+            }
+            item {
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text("Paired with this phone", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
+            items(s.paired.filter { it.id !in s.sharedIds }) { d ->
+                DeviceRow(d, s, subtitle = kindLabel(d.kind) + if (d.connected) " · Connected" else " · Not connected") {
+                    if (d.kind in AUDIO_KINDS && !d.connected) TextButton(onClick = { vm.connect(d) }) { Text("Connect") }
+                    if (d.kind in AUDIO_KINDS && d.connected) TextButton(onClick = { vm.disconnect(d) }) { Text("Disconnect") }
+                    TextButton(onClick = { vm.setMine(d, true) }) { Text("This is mine") }
+                }
+            }
+            item {
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Start when the phone starts", fontWeight = FontWeight.Medium)
+                        Text("Keeps Redtooth ready to receive files, like the desktop tray app.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(s.startAtBoot, vm::setStartAtBoot)
+                }
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }
@@ -167,9 +273,9 @@ private fun AudioCard(s: PanelState, onConnect: (Device) -> Unit, onShare: (Devi
 private fun PeopleCard(people: List<Person>, onSend: (Person) -> Unit) {
     ElevatedCard(shape = RoundedCornerShape(24.dp)) {
         Column(Modifier.padding(16.dp)) {
-            Text("Nearby", style = MaterialTheme.typography.titleSmall)
+            Text("People", style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(8.dp))
-            if (people.isEmpty()) Text("No one nearby yet", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            if (people.isEmpty()) Text("No one who uses Redtooth is nearby yet", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(people) { p ->
                     Column(Modifier.width(72.dp).clip(RoundedCornerShape(16.dp)).clickable { onSend(p) }.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {

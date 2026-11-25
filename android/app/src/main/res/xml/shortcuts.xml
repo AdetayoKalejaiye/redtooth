@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the Redtooth icon: the phone's equivalent of the desktop tray menu. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="pair" android:enabled="true" android:icon="@drawable/ic_redtooth"
+        android:shortcutShortLabel="@string/shortcut_pair" android:shortcutLongLabel="@string/shortcut_pair">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.redtooth.android" android:targetClass="app.redtooth.android.ui.MainActivity">
+            <extra android:name="open" android:value="scan" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="devices" android:enabled="true" android:icon="@drawable/ic_redtooth"
+        android:shortcutShortLabel="@string/shortcut_devices" android:shortcutLongLabel="@string/shortcut_devices">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.redtooth.android" android:targetClass="app.redtooth.android.ui.MainActivity">
+            <extra android:name="open" android:value="devices" />
+        </intent>
+    </shortcut>
+    <shortcut android:shortcutId="send" android:enabled="true" android:icon="@drawable/ic_redtooth"
+        android:shortcutShortLabel="@string/shortcut_send" android:shortcutLongLabel="@string/shortcut_send">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="app.redtooth.android" android:targetClass="app.redtooth.android.ui.MainActivity">
+            <extra android:name="open" android:value="send" />
+        </intent>
+    </shortcut>
+</shortcuts>

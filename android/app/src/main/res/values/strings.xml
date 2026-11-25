@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_pair">Pair new device</string>
+    <string name="shortcut_devices">Your devices</string>
+    <string name="shortcut_send">Send a file</string>
+</resources>

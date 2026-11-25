@@ -10,6 +10,7 @@ import app.redtooth.android.net.WifiAwareLink
 import app.redtooth.android.notify.Notifications
 import app.redtooth.core.Agent
 import app.redtooth.core.Contact
+import app.redtooth.core.FileHit
 import app.redtooth.core.HttpDirectory
 import app.redtooth.core.IncomingOffer
 import app.redtooth.core.PeopleResolver
@@ -24,6 +25,15 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+
+/** Starts the always-listening receiver after the phone boots (if "Start when the phone starts" is on). */
+class BootReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(c: Context, i: android.content.Intent) {
+        if (i.action != android.content.Intent.ACTION_BOOT_COMPLETED && i.action != "android.intent.action.QUICKBOOT_POWERON") return
+        val s = Settings(c)
+        if (s.registered && s.startAtBoot) app.redtooth.android.net.RedtoothService.start(c)
+    }
+}
 
 class RedtoothApp : Application() {
     override fun onCreate() {
@@ -47,7 +57,14 @@ class Settings(private val ctx: Context) {
     var token: String? get() = p.getString("token", null); set(v) = p.edit().putString("token", v).apply()
     val deviceId: String get() = p.getString("device_id", null) ?: ("and_" + UUID.randomUUID().toString().take(8)).also { p.edit().putString("device_id", it).apply() }
     val deviceName: String get() = "${name.substringBefore(' ').ifEmpty { "My" }}'s ${Build.MODEL}"
+    /** Devices you've marked as yours (contacts can ask for them by name). */
     var sharedDeviceIds: Set<String> get() = p.getStringSet("shared", emptySet()) ?: emptySet(); set(v) = p.edit().putStringSet("shared", v).apply()
+    /** What you call each of them ("Adetayo's speaker"). */
+    var deviceAliases: Map<String, String>
+        get() = runCatching { (app.redtooth.core.Json.obj(p.getString("aliases", "{}") ?: "{}")).mapValues { it.value.toString() } }.getOrDefault(emptyMap())
+        set(v) = p.edit().putString("aliases", app.redtooth.core.Json.encode(v)).apply()
+    /** Start Redtooth's receiver when the phone starts. */
+    var startAtBoot: Boolean get() = p.getBoolean("start_at_boot", true); set(v) = p.edit().putBoolean("start_at_boot", v).apply()
     val registered get() = name.isNotEmpty() && phone.isNotEmpty() && token != null
 }
 
@@ -102,6 +119,16 @@ object Graph {
     fun me() = Person(Contact("c_me", settings.name, listOf(settings.phone)), isSelf = true)
 
     /** (Re)build the agent with the current contacts. Call off the main thread. */
+    /** Keep the agent's view of "your devices" in step with settings. */
+    fun refreshMine(a: Agent? = agent) {
+        val ids = settings.sharedDeviceIds
+        val aliases = settings.deviceAliases
+        a?.mine = runCatching { bluetooth.paired() }.getOrDefault(emptyList()).filter { it.id in ids }.associate { it.id to it.copy(alias = aliases[it.id]) }
+    }
+
+    /** Ask the panel to hand a file to the system Bluetooth share (phones without Redtooth). */
+    val bluetoothShares = MutableSharedFlow<FileHit>(extraBufferCapacity = 4)
+
     fun buildAgent(contacts: List<Contact>): Agent {
         val people = PeopleResolver(contacts, me())
         val a = Agent(me(), people, directory, bluetooth, files, PrefsRemembered(app), sender, onEvent = { kind, v ->
@@ -111,6 +138,10 @@ object Graph {
             }
         })
         a.routeFallback = { d -> aware.endpointFor(d.id) }
+        a.usage = app.redtooth.core.UsageStore(java.io.File(app.filesDir, "usage.json"))
+        files.usage = a.usage
+        a.thisDeviceId = settings.deviceId
+        refreshMine(a)
         a.refreshPeople()
         agent = a
         return a

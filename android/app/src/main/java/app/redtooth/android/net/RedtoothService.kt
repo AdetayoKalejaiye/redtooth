@@ -82,7 +82,8 @@ class RedtoothService : Service() {
                 if (s.registered) {
                     val me = Device(s.deviceId, s.deviceName, "phone", model = Build.MODEL, hasApp = true, wifiDirect = Graph.aware.supported,
                         endpoints = lanAddresses().map { Endpoint("lan", it, port) } + listOfNotNull(Endpoint("wifi_aware", s.deviceId, 0).takeIf { Graph.aware.supported }))
-                    val shared = Graph.bluetooth.paired().filter { it.id in s.sharedDeviceIds }.map { it.copy(connected = false, sources = mutableListOf()) }
+                    val aliases = s.deviceAliases
+                    val shared = Graph.bluetooth.paired().filter { it.id in s.sharedDeviceIds }.map { it.copy(connected = false, sources = mutableListOf(), alias = aliases[it.id]) }
                     Graph.directory.setDevices(s.phone, listOf(me) + shared)
                     Graph.directory.inbox().forEach { msg ->
                         Graph.nudges.tryEmit(msg)

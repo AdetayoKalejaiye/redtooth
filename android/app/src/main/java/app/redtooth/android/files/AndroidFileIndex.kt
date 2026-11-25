@@ -10,6 +10,8 @@ import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import android.provider.MediaStore
 import app.redtooth.core.FileHit
+import app.redtooth.core.Ranking
+import app.redtooth.core.UsageStore
 import app.redtooth.core.FileQuery
 import app.redtooth.core.FileSearch
 import app.redtooth.core.FileSource
@@ -177,6 +179,9 @@ class AndroidFileIndex(private val ctx: Context) : FileSearch {
     }
 
     // ------------------------------------------------------------------ search
+    /** What you open, send and pick (set by the app; shared with the agent). */
+    @Volatile var usage: UsageStore? = null
+
     override fun search(q: FileQuery): List<FileHit> {
         val where = mutableListOf<String>(); val args = mutableListOf<String>()
         if (q.exts.isNotEmpty()) { where += "f.ext IN (${q.exts.joinToString(",") { "?" }})"; args += q.exts }
@@ -206,10 +211,20 @@ class AndroidFileIndex(private val ctx: Context) : FileSearch {
                 if (s > (best[fid]?.first ?: -1.0)) { best[fid] = s to (c.getString(7) to (c.getString(8) ?: "")); rows[fid] = hit(c, 0.0) }
             }
         }
-        val top = best.values.maxOfOrNull { it.first }?.takeIf { it > 0 } ?: return emptyList()
-        return best.entries.sortedByDescending { it.value.first }.take(8).map { (fid, v) ->
+        // Same adjustments as the desktop: how much of the request the file covers, what you use, newer first on ties.
+        val qws = Ranking.queryWords(text)
+        val sig = usage?.signals(rows.values.map { it.path }, text) ?: emptyMap()
+        val scored = best.mapValues { (fid, v) ->
+            val h = rows[fid]!!
+            val (u, pick, why) = sig[h.path] ?: Triple(0.0, 0.0, emptyList())
+            h.reasons = why
+            v.first / 10.0 + Ranking.coverageBonus(qws, h.name, v.second.second) + 0.02 * u + 0.05 * pick + Ranking.recency(h.mtime)
+        }
+        val top = scored.values.maxOrNull()?.takeIf { it > 0 } ?: return emptyList()
+        return scored.entries.sortedWith(compareBy({ -it.value }, { -rows[it.key]!!.mtime })).take(8).map { (fid, sc) ->
             rows[fid]!!.apply {
-                score = v.first / top
+                score = sc / top
+                val v = best[fid]!!
                 snippetLabel = if (v.second.first == "File name") "" else v.second.first
                 snippet = v.second.second.take(140)
             }
