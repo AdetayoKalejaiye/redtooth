@@ -523,7 +523,7 @@ class Agent:
         opts = [Option(d.id, d.label(), "Connected" if d.connected else "Paired with this computer", d) for d in ranked[:5]]
         q = Question(new_id("q_"), "choose_own_device", f"Which one is your {want}?", opts, {"person": me})
         self.ctx.pending = q
-        return me, None, Reply(q.prompt + " (Mark it as yours in Bluetooth devices and I won't ask again.)", question=q, status="Waiting for you")
+        return me, None, Reply(q.prompt + " (Add it to Your devices in Settings and I won't ask again.)", question=q, status="Waiting for you")
 
     async def _start_send(self, hit: FileHit, person: Person, dest: Optional[Device], t0: Optional[float] = None) -> Reply:
         self.ctx.set_person(person)
