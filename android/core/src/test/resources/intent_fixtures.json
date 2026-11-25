@@ -1,0 +1,1889 @@
+{
+ "now": "2026-11-24T15:30:00-06:00",
+ "names": [
+  "Daniel",
+  "Daniel Ortiz",
+  "Dan",
+  "Priya",
+  "Priya Shah",
+  "Daniel Kim",
+  "Mom"
+ ],
+ "cases": [
+  {
+   "text": "Hey, connect to my friend Daniel's headphones",
+   "action": "connect",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": "friend",
+   "device_kind": "headphones",
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "connect to Daniel's headphones",
+   "action": "connect",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": "headphones",
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "Send Daniel the deck I edited this morning.",
+   "action": "send",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "",
+    "since": 1795500000.0,
+    "until": 1795543200.0,
+    "time_label": "this morning",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "Find the deck about customer churn.",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "customer churn",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "Send it to his laptop instead.",
+   "action": "retarget",
+   "person": "his",
+   "pronoun": true,
+   "relation": null,
+   "device_kind": "laptop",
+   "device_hint": null,
+   "choice": null,
+   "instead": true,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": true,
+    "names": []
+   }
+  },
+  {
+   "text": "yes",
+   "action": "confirm",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "no",
+   "action": "deny",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "nope, not those",
+   "action": "deny",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "the second one",
+   "action": "choose",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": 1,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "2",
+   "action": "choose",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": 1,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "the first one",
+   "action": "choose",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": 0,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "last",
+   "action": "choose",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": -1,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "share the budget spreadsheet with daniel",
+   "action": "send",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "spreadsheet"
+    ],
+    "exts": [
+     ".csv",
+     ".numbers",
+     ".ods",
+     ".xls",
+     ".xlsx"
+    ],
+    "topic": "budget",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "play music on daniel's speaker",
+   "action": "connect",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": "speaker",
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "connect my airpods",
+   "action": "connect",
+   "person": "my",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": "headphones",
+   "device_hint": "airpods",
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "Send the Q4 board deck to daniel's laptop",
+   "action": "send",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": "laptop",
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "Q4 board",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "send the PRJ-2041 checklist to Priya",
+   "action": "send",
+   "person": "priya",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "PRJ-2041 checklist",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "disconnect",
+   "action": "disconnect",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "use priya's sony headphones",
+   "action": "connect",
+   "person": "priya",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": "headphones",
+   "device_hint": "sony",
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "send priya the photos from last week",
+   "action": "send",
+   "person": "priya",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "image"
+    ],
+    "exts": [
+     ".gif",
+     ".heic",
+     ".jpeg",
+     ".jpg",
+     ".png",
+     ".webp"
+    ],
+    "topic": "",
+    "since": 1794808800.0,
+    "until": 1795413600.0,
+    "time_label": "last week",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "send mom the video I made yesterday afternoon",
+   "action": "send",
+   "person": "mom",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "video"
+    ],
+    "exts": [
+     ".mkv",
+     ".mov",
+     ".mp4",
+     ".webm"
+    ],
+    "topic": "",
+    "since": 1795456800.0,
+    "until": 1795478400.0,
+    "time_label": "yesterday afternoon",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "find the pdf I got on monday",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "pdf"
+    ],
+    "exts": [
+     ".pdf"
+    ],
+    "topic": "got",
+    "since": 1795413600.0,
+    "until": 1795500000.0,
+    "time_label": "on Monday",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "send it to her phone",
+   "action": "send",
+   "person": "her",
+   "pronoun": true,
+   "relation": null,
+   "device_kind": "phone",
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": true,
+    "names": []
+   }
+  },
+  {
+   "text": "send dan the slides from 2 days ago",
+   "action": "send",
+   "person": "dan",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "",
+    "since": 1795296600.0,
+    "until": 1795469400.0,
+    "time_label": "2 days ago",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "connect to my colleague priya's speaker",
+   "action": "connect",
+   "person": "priya",
+   "pronoun": false,
+   "relation": "coworker",
+   "device_kind": "speaker",
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "Hey Siri, send Daniel the “Offsite agenda”",
+   "action": "send",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "Offsite agenda",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": [
+     "Offsite agenda"
+    ]
+   }
+  },
+  {
+   "text": "could you find the notes I wrote just now",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "notes",
+    "since": 1795554000.0,
+    "until": 1795555800.0,
+    "time_label": "in the last 30 minutes",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "which deck did I edit this week",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "did edit",
+    "since": 1795413600.0,
+    "until": 1795555800.0,
+    "time_label": "this week",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "play it through daniel's bose",
+   "action": "connect",
+   "person": "daniel",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": "bose",
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "send the spreadsheet to Daniel Kim",
+   "action": "send",
+   "person": "daniel kim",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "spreadsheet"
+    ],
+    "exts": [
+     ".csv",
+     ".numbers",
+     ".ods",
+     ".xls",
+     ".xlsx"
+    ],
+    "topic": "",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "find documents from last night",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "document"
+    ],
+    "exts": [
+     ".doc",
+     ".docx",
+     ".md",
+     ".odt",
+     ".pages",
+     ".pdf",
+     ".rtf",
+     ".txt"
+    ],
+    "topic": "",
+    "since": 1795474800.0,
+    "until": 1795518000.0,
+    "time_label": "last night",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "ok",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "that one",
+   "action": "confirm",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": null
+  },
+  {
+   "text": "find the Q4 board update",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "Q4 board update",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "open the brand refresh deck",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "brand refresh",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the parental leave policy",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "parental leave policy",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "find the offsite agenda",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "offsite agenda",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "kubernetes upgrade runbook",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "kubernetes upgrade runbook",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "headcount tracker",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "headcount tracker",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "employee handbook",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "employee handbook",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "PRJ-2041",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "PRJ-2041",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "send the PRJ-2177 doc to Priya",
+   "action": "send",
+   "person": "priya",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "document"
+    ],
+    "exts": [
+     ".doc",
+     ".docx",
+     ".md",
+     ".odt",
+     ".pages",
+     ".pdf",
+     ".rtf",
+     ".txt"
+    ],
+    "topic": "PRJ-2177",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "prj 2177 plan",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "prj 2177 plan",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "invoice INV-88312",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "invoice INV-88312",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the 88312 invoice",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "88312 invoice",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "find the deck about customer churn",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "customer churn",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the deck about lowering our AWS bill",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "lowering AWS bill",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "presentation about our new visual identity",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "visual identity",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "slides about the data breach",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "data breach",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "deck about charging customers by consumption instead of per user",
+   "action": "retarget",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": true,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "charging customers consumption per user",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the agreement with our shipping supplier",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "agreement shipping supplier",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "doc about time off after having a baby",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "document"
+    ],
+    "exts": [
+     ".doc",
+     ".docx",
+     ".md",
+     ".odt",
+     ".pages",
+     ".pdf",
+     ".rtf",
+     ".txt"
+    ],
+    "topic": "time off after having baby",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "where are we moving offices",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "we moving offices",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "what to do when production goes down",
+   "action": "send",
+   "person": "do",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "what when production goes down",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "steps for upgrading the cluster",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "steps upgrading cluster",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "how do I get reimbursed for travel",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "how do reimbursed travel",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "spreadsheet of accounts likely to churn",
+   "action": "send",
+   "person": "churn",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "spreadsheet"
+    ],
+    "exts": [
+     ".csv",
+     ".numbers",
+     ".ods",
+     ".xls",
+     ".xlsx"
+    ],
+    "topic": "accounts likely",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "what the customer said about single sign-on",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "single sign-on",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the doc about moving customer records to the warehouse",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "document"
+    ],
+    "exts": [
+     ".doc",
+     ".docx",
+     ".md",
+     ".odt",
+     ".pages",
+     ".pdf",
+     ".rtf",
+     ".txt"
+    ],
+    "topic": "moving customer records warehouse",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "our goals for the quarter",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "goals quarter",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "my notes about becoming a staff engineer",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "becoming staff engineer",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the deck about getting fewer customers to leave",
+   "action": "send",
+   "person": "leave",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "getting fewer customers",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the bill from the freight company",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "bill freight company",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "doc about paying employees to stay",
+   "action": "send",
+   "person": "stay",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "document"
+    ],
+    "exts": [
+     ".doc",
+     ".docx",
+     ".md",
+     ".odt",
+     ".pages",
+     ".pdf",
+     ".rtf",
+     ".txt"
+    ],
+    "topic": "paying employees",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "notes on the model that predicts cancellations",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "spreadsheet"
+    ],
+    "exts": [
+     ".csv",
+     ".numbers",
+     ".ods",
+     ".xls",
+     ".xlsx"
+    ],
+    "topic": "model predicts cancellations",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "customer retention plan",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "customer retention plan",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "how to report harassment",
+   "action": "send",
+   "person": "report",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "how harassment",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "when does the delivery contract renew",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "when does delivery contract renew",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "our data protection policy",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "data protection policy",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "minutes from the supplier meeting",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "minutes supplier meeting",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "cómo reducir la pérdida de clientes",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "cómo reducir la pérdida de clientes",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "presentación sobre la reducción de costos en la nube",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "presentación sobre la reducción de costos en la nube",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "Richtlinie zur Elternzeit",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "Richtlinie zur Elternzeit",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "解約を減らす計画",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "解約を減らす計画",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "supplier price increase in April",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "supplier price increase April",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the deck I edited this morning",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "",
+    "since": 1795500000.0,
+    "until": 1795543200.0,
+    "time_label": "this morning",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the spreadsheet I changed yesterday",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "spreadsheet"
+    ],
+    "exts": [
+     ".csv",
+     ".numbers",
+     ".ods",
+     ".xls",
+     ".xlsx"
+    ],
+    "topic": "",
+    "since": 1795413600.0,
+    "until": 1795500000.0,
+    "time_label": "yesterday",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "notes from yesterday's standup",
+   "action": "send",
+   "person": "yesterday",
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "notes s standup",
+    "since": 1795413600.0,
+    "until": 1795500000.0,
+    "time_label": "yesterday",
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the thing about the reorg",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "reorg",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "that pricing thing",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "pricing",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the incident from March",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "incident March",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the board stuff",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [],
+    "exts": [],
+    "topic": "board",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "find the deck about the holiday party",
+   "action": "find",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "presentation"
+    ],
+    "exts": [
+     ".key",
+     ".odp",
+     ".ppt",
+     ".pptx"
+    ],
+    "topic": "holiday party",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "the doc about our Mars colony",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "document"
+    ],
+    "exts": [
+     ".doc",
+     ".docx",
+     ".md",
+     ".odt",
+     ".pages",
+     ".pdf",
+     ".rtf",
+     ".txt"
+    ],
+    "topic": "Mars colony",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  },
+  {
+   "text": "spreadsheet of soccer scores",
+   "action": "unknown",
+   "person": null,
+   "pronoun": false,
+   "relation": null,
+   "device_kind": null,
+   "device_hint": null,
+   "choice": null,
+   "instead": false,
+   "file": {
+    "kinds": [
+     "spreadsheet"
+    ],
+    "exts": [
+     ".csv",
+     ".numbers",
+     ".ods",
+     ".xls",
+     ".xlsx"
+    ],
+    "topic": "soccer scores",
+    "since": null,
+    "until": null,
+    "time_label": null,
+    "refers_previous": false,
+    "names": []
+   }
+  }
+ ]
+}
