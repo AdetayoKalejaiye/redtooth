@@ -53,13 +53,13 @@ def _folder(path: str) -> str:
     return " › ".join(parts[-3:-1]) if len(parts) >= 3 else (parts[-2] if len(parts) >= 2 else "")
 
 
-def distinguish(hits: list[FileHit]) -> tuple[str, list[str]]:
+def distinguish(hits: list[FileHit], now=None) -> tuple[str, list[str]]:
     """(question, one short distinguishing phrase per file)."""
     hs = hits[:3]
     exts = [h.ext.lower() for h in hs]
     cores = [_core(h.name) for h in hs]
     words = [set(_words(h.name)) for h in hs]
-    dates = [when_label(h.mtime) for h in hs]
+    dates = [when_label(h.mtime, now) for h in hs]
 
     def join(parts: list[str]) -> str:
         return parts[0] + " or " + parts[1] if len(parts) == 2 else ", ".join(parts[:-1]) + " or " + parts[-1]
@@ -95,8 +95,8 @@ def distinguish(hits: list[FileHit]) -> tuple[str, list[str]]:
     return f"Which one: {join(phr)}?", phr
 
 
-def option_detail(h: FileHit) -> str:
-    bits = [f"Edited {when_label(h.mtime)}"]
+def option_detail(h: FileHit, now=None) -> str:
+    bits = [f"Edited {when_label(h.mtime, now)}"]
     folder = _folder(h.path)
     if folder:
         bits.append(folder)
