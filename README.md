@@ -154,16 +154,20 @@ Config lives in `~/.redtooth/config.json`; the log (when running from the tray) 
 
 ## Platform status
 
-| | Status in this build |
-|---|---|
-| Agent, search, contacts, directory, transfers, resume, panel | Implemented and covered by tests |
-| Simulated Bluetooth | Implemented, drives the demo and tests |
-| Windows Bluetooth + audio | WinRT association endpoints (real connected state, scan with inquiry, in-place pairing), Bluetooth audio one-shot reconnect/disconnect, Core Audio output switching. Written against the API stubs; **not yet run on hardware**: `redtooth doctor` shows what it sees |
-| Linux / macOS Bluetooth + audio routing | bluetoothctl/pactl and blueutil/SwitchAudioSource; **not yet run on hardware** |
-| Wi-Fi Direct | Route preference implemented; group formation for Linux (`wpa_cli`) and Windows (WinRT) not yet tested on hardware. macOS has no public API, so Macs use the LAN |
-| E5 embeddings | Default; downloaded automatically on first start (falls back to keyword search if offline, retries next start; opt out with `REDTOOTH_EMBEDDER=hash`). Not yet scored: the model host was unreachable from the build machine. Run `redtooth eval --calibrate --save` once it's downloaded |
-| Phones | The panel is responsive and the wire protocol is documented in `docs/PROTOCOL.md`. iOS/Android need native clients for Bluetooth, the share sheet and background receiving |
-| Quick controls | The panel opens as a compact app window (`redtooth panel`); share entry via `redtooth share FILE`. A native menu-bar / Quick Settings tile is the next step |
+The same features on every platform, as far as each OS allows:
+
+| | Windows | macOS | Linux | Android | iOS |
+|---|---|---|---|---|---|
+| Always-there entry point | Tray icon | Menu-bar icon | Tray icon (AppIndicator) | Notification + long-press shortcuts | Control Center + Shortcuts/Siri |
+| Start at sign-in / boot | Run key | LaunchAgent | XDG autostart | Boot receiver (toggle) | n/a (iOS wakes the app for pushes) |
+| Real "Connected" state | Win32 Bluetooth API | blueutil | bluetoothctl | A2DP + headset profiles | Current audio route only |
+| Pair new device | In the panel (inquiry scan + pair) | In the panel (blueutil) | In the panel (bluetoothctl) | In the app (discovery + pair) | Settings only (Apple doesn't allow apps to pair); the app says where |
+| Your devices (claim + name friends use) | Settings › Your devices | same | same | Your devices sheet | Mark the output playing now |
+| Audio checked before saying it moved | Core Audio | SwitchAudioSource | pactl | Android 13+ media route | AVAudioSession route |
+| Send to your own phone without Redtooth on it | OBEX Object Push | Bluetooth File Exchange hand-off | obexd | System Bluetooth share | Not possible (iPhones don't accept Bluetooth files); AirDrop |
+| Search: hybrid + re-ranker + usage + "which one" | Full | Full | Full | Keyword + coverage, recency, usage, same questions | Keyword + coverage, recency, usage, same questions |
+
+What's verified: Python tests (79), the Kotlin core suite (23 checks, including live Kotlin↔Python transfers and directory), and shared fixtures that pin phone numbers, intents, ranking and the "which one" questions to the same answers in all three languages. What isn't: none of the Bluetooth backends have run on real hardware except your Windows logs; the Android app hasn't been built with the Android SDK, and the Swift code hasn't been compiled (no Swift toolchain on the build machine). `redtooth doctor` shows what the desktop sees.
 
 ## Security notes
 
