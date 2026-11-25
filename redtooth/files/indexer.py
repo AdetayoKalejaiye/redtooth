@@ -40,6 +40,11 @@ from .extract import KIND_BY_EXT, extract_limited
 
 log = logging.getLogger("redtooth.indexer")
 
+
+def _safe(t) -> str:
+    t = t if isinstance(t, str) else ("" if t is None else str(t))
+    return t.encode("utf-8", "replace").decode("utf-8")
+
 MAX_FILES = int(os.environ.get("REDTOOTH_MAX_FILES", 1_000_000))
 RECENT_DAYS = 14
 REBUILD_EVERY = 25_000  # chunks between vector-index rebuilds during a long pass
@@ -313,6 +318,7 @@ class Indexer:
 
                 if f[1] > content_limit(path):
                     st.name_only += 1
+            chunks = [(_safe(lbl), _safe(txt)) for lbl, txt in (chunks or [])]
             items.append((os.path.basename(path), chunks))
             metas.append(f)
         try:

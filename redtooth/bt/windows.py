@@ -421,14 +421,22 @@ class WindowsBluetooth(BluetoothPlatform):
         found: dict[str, Device] = {}
         if self.w32:
             try:
-                for b in await loop.run_in_executor(None, self.w32.devices, True, seconds):
-                    if not b.paired and b.name:
-                        d = self._from_w32(b, "nearby")
-                        found[d.id] = d
+                hits = [b for b in await loop.run_in_executor(None, self.w32.devices, True, seconds) if not b.paired]
+                for b in hits:
+                    if not b.name:  # Windows often finds a phone before it has read its name: ask again
+                        again = await loop.run_in_executor(None, self.w32.info, b.address)
+                        if again and again.name:
+                            b.name, b.cod = again.name, again.cod or b.cod
+                    d = self._from_w32(b, "nearby")
+                    if not b.name:
+                        d.name = f"Unnamed device ({b.address[-5:]})"
+                    found[d.id] = d
             except Exception as e:
                 _warn_once("scanning (classic API)", e)
         for d in await le_task:
-            found.setdefault(d.id, d)
+            prev = found.get(d.id)
+            if prev is None or prev.name.startswith("Unnamed device"):
+                found[d.id] = d
         out = list(found.values())
         out.sort(key=lambda d: (d.kind not in ("headphones", "speaker"), -(d.rssi if d.rssi is not None else -100)))
         return out
@@ -467,7 +475,9 @@ class WindowsBluetooth(BluetoothPlatform):
             loop.call_soon_threadsafe(apply)
 
         watchers = []
-        for aqs in (_aqs(LE, False) + " AND System.Devices.Aep.Bluetooth.Le.IsConnectable:=System.StructuredQueryType.Boolean#True",):
+        if "scan" in self._winrt_hangs:
+            return []
+        for aqs in (_aqs(CLASSIC, False, inquiry=True), _aqs(LE, False) + " AND System.Devices.Aep.Bluetooth.Le.IsConnectable:=System.StructuredQueryType.Boolean#True"):
             try:
                 w = DeviceInformation.create_watcher(aqs, PROPS, DeviceInformationKind.ASSOCIATION_ENDPOINT)
                 w.add_added(on_info)
