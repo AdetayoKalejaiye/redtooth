@@ -96,6 +96,22 @@ class DeviceResolver:
         survey.remembered = [d for d in self.store.remembered(phone) if kind_ok(d, kind)] if phone else []
         survey.registered = [d for d in (owner.profile.devices if owner.profile else []) if kind_ok(d, kind)]
 
+        if owner.is_self:
+            own = [p for p in survey.paired if kind_ok(p, kind) and not self._owned_by_other(p) and (not hint or hint_ok(p, hint))]
+            connected = [p for p in own if p.connected]
+            if connected:  # already connected: just make sure audio goes there
+                scan_task.cancel()
+                return Outcome("known", connected[0], survey=survey, ms=now_ms() - t0)
+            if len(own) == 1:
+                scan_task.cancel()
+                return Outcome("known", own[0], survey=survey, ms=now_ms() - t0)
+            if len(own) > 1:
+                # Several of yours: ask which, most recently used first (no guessing, no trying each one).
+                scan_task.cancel()
+                used = {d.id: i for i, d in enumerate(self.store.remembered(phone))} if phone else {}
+                own.sort(key=lambda d: used.get(d.id, 99))
+                return Outcome("choose", None, own[:5], survey=survey, ms=now_ms() - t0)
+
         # 1-2. Known and already paired: connect without waiting for the scan.
         for src in (survey.remembered, survey.registered):
             for d in src:
@@ -103,13 +119,6 @@ class DeviceResolver:
                 if p:
                     scan_task.cancel()
                     return Outcome("known", self._merge(d, p), survey=survey, ms=now_ms() - t0)
-        if owner.is_self:
-            own = [p for p in survey.paired if kind_ok(p, kind) and not self._owned_by_other(p) and (not hint or hint_ok(p, hint))]
-            if own:
-                scan_task.cancel()
-                own.sort(key=lambda d: (not d.connected, -(d.rssi or -100)))
-                return Outcome("known", own[0], survey=survey, ms=now_ms() - t0)
-
         # 3. Scan for discoverable devices.
         try:
             survey.nearby = await scan_task
@@ -167,6 +176,7 @@ class DeviceResolver:
                 return Outcome("failed", dev, reason="pair", ms=now_ms() - t0)
             dev.paired = True
         if not await self.bt.connect(dev):
+            dev.connected = False
             return Outcome("failed", dev, reason="connect", ms=now_ms() - t0)
         dev.connected = True
         verified = await self.bt.verify_audio_output(dev) if dev.kind in AUDIO_KINDS else True

@@ -30,7 +30,7 @@ async def guard(request: web.Request, handler):
     return await handler(request)
 
 
-def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, extra_routes=None, contacts=None) -> web.Application:
+def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, extra_routes=None, contacts=None, app_info=None) -> web.Application:
     app = web.Application(middlewares=[guard], client_max_size=4 * 1024**3)
     r = web.RouteTableDef()
     incoming: dict[str, dict] = {}
@@ -110,20 +110,64 @@ def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, ext
         ok = bool(broker and broker.resolve(request.match_info["oid"], bool(b.get("accept"))))
         return web.json_response({"ok": ok})
 
-    @r.post("/api/my-devices/register")
-    async def register_device(request):
-        """Register one of your paired devices so friends' requests resolve to it."""
-        b = await body(request)
-        dev = next((d for d in await agent.bt.paired() if d.id == b.get("device_id")), None)
-        if not dev or not agent.me.phone:
-            raise web.HTTPNotFound()
-        agent.shared_devices = [d for d in agent.shared_devices if d.id != dev.id] + [dev]
-        if agent.persist_shared:
-            agent.persist_shared()
-        if hasattr(agent.directory, "upsert_device"):
-            await agent.directory.upsert_device(agent.me.phone, dev)
-        agent.bus.publish("state", await agent.state())
+    @r.post("/api/navigate")
+    async def navigate(request):
+        """The tray menu asks the open panel to show a view."""
+        agent.bus.publish("navigate", {"to": str((await body(request)).get("to", "home"))})
         return web.json_response({"ok": True})
+
+    @r.get("/api/app")
+    async def app_get(request):
+        from . import desktop
+
+        info = dict(app_info() if app_info else {})
+        info.update(autostart_supported=desktop.autostart_supported(), autostart=desktop.autostart_enabled() if desktop.autostart_supported() else False)
+        return web.json_response(info)
+
+    @r.post("/api/app")
+    async def app_set(request):
+        from . import desktop
+
+        b = await body(request)
+        if "autostart" in b and desktop.autostart_supported():
+            desktop.set_autostart(bool(b["autostart"]))
+        return web.json_response({"ok": True, "autostart": desktop.autostart_enabled() if desktop.autostart_supported() else False})
+
+    @r.post("/api/doctor")
+    async def doctor(request):
+        from .cli import format_doctor
+
+        report = await agent.bt.diagnose()
+        return web.json_response({"ok": True, "text": format_doctor(report), "report": report})
+
+    @r.post("/api/scan")
+    async def scan(request):
+        found = await agent.scan_nearby(float((await body(request)).get("seconds", 8)))
+        return web.json_response({"ok": True, "devices": [d.to_dict() for d in found]})
+
+    @r.post("/api/pair")
+    async def pair(request):
+        return web.json_response((await agent.pair_device(str((await body(request)).get("device_id", "")))).to_dict())
+
+    @r.post("/api/disconnect")
+    async def disconnect(request):
+        return web.json_response((await agent.disconnect_device(str((await body(request)).get("device_id", "")))).to_dict())
+
+    @r.get("/api/my-devices")
+    async def my_devices(request):
+        return web.json_response({"devices": await agent.my_devices(), "me": agent.me.first})
+
+    @r.post("/api/my-devices")
+    async def set_mine(request):
+        """Mark one of your paired devices as yours (or not), with the name friends will use."""
+        b = await body(request)
+        if not agent.me.phone:
+            raise web.HTTPNotFound()
+        try:
+            await agent.set_mine(str(b.get("device_id", "")), bool(b.get("mine", True)), b.get("alias"))
+        except KeyError:
+            return web.json_response({"ok": False, "error": "That device isn't paired with this computer."})
+        return web.json_response({"ok": True, "devices": await agent.my_devices()})
 
     @r.get("/api/contacts")
     async def contacts_status(request):

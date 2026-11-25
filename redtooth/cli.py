@@ -22,7 +22,9 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 import urllib.request
+from typing import Optional
 import webbrowser
 from pathlib import Path
 
@@ -64,20 +66,21 @@ def lan_addresses() -> list[str]:
     return sorted(addrs)
 
 
-def open_panel(url: str) -> None:
-    """A compact app window when Chrome/Edge is present, else the default browser."""
-    for exe in ("google-chrome", "chromium", "microsoft-edge", "msedge", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"):
-        path = shutil.which(exe) or (exe if os.path.exists(exe) else None)
-        if path:
-            subprocess.Popen([path, f"--app={url}", "--window-size=420,760"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return
-    webbrowser.open(url)
+def open_panel(url: str, view: Optional[str] = None) -> None:
+    from .desktop import open_panel as _open
+
+    _open(url, HOME, view)
 
 
 def post(port: int, path: str, body: dict) -> dict:
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(body).encode(), headers={"Content-Type": "application/json", "X-Redtooth": "1"})
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())
+
+
+def _add_routes(app, routes):
+    app.add_routes(routes)
+    return app
 
 
 async def _run_app(app, port: int, open_ui: bool) -> None:
@@ -102,7 +105,7 @@ async def cmd_demo(args) -> None:
     await _run_app(make_app(demo.agent, demo=demo), args.port, args.open)
 
 
-async def cmd_serve(args) -> None:
+async def cmd_serve(args, set_status=None) -> None:
     from .agent import Agent
     from .bt.base import detect_platform
     from .contacts import ContactBook
@@ -130,11 +133,22 @@ async def cmd_serve(args) -> None:
         except Exception as e:
             logging.warning("couldn't add file-menu entries: %s", e)
     extra = None
-    if args.host_directory:
-        state = InMemoryDirectory()
-        directory = state
-        extra = directory_routes(state, allow_open_register=False)
-        await state.register(cfg["phone"], cfg["name"])
+    hosted: Optional[InMemoryDirectory] = None
+    if cfg.get("host_directory") or args.host_directory:
+        # This computer is the group's directory: same process, its own LAN port, kept on disk.
+        from aiohttp import web as _web
+
+        hosted = InMemoryDirectory(HOME / "directory.json")
+        if not await hosted.lookup([cfg["phone"]]):
+            await hosted.register(cfg["phone"], cfg["name"])
+        directory = hosted
+        dport = int(cfg.get("directory_port", 8790))
+        drunner = _web.AppRunner(_add_routes(_web.Application(), directory_routes(hosted, allow_open_register=False)))
+        await drunner.setup()
+        try:
+            await _web.TCPSite(drunner, "0.0.0.0", dport).start()
+        except OSError as e:
+            logging.warning("couldn't open the directory on port %s (%s); is `redtooth directory` already running?", dport, e)
     else:
         directory = HTTPDirectory(cfg["directory"], cfg.get("token"))
 
@@ -167,6 +181,14 @@ async def cmd_serve(args) -> None:
 
     agent.persist_shared = persist_shared
 
+    async def publish_devices() -> None:
+        try:
+            await directory.set_devices(cfg["phone"], [this] + agent.shared_devices)
+        except Exception as e:
+            logging.warning("couldn't update the directory: %s", e)
+
+    agent.publish_devices = publish_devices
+
     # Always listening for incoming files; accept from a notification or the panel.
     broker = AcceptBroker(native=True, auto_accept=lambda o: o.sender_phone == cfg["phone"])
     this = Device(cfg.setdefault("device_id", f"dev_{socket.gethostname()}"), cfg.get("device_name") or socket.gethostname(), cfg.get("device_kind", "laptop"), has_app=True, wifi_direct=agent.bt.wifi_direct)
@@ -180,7 +202,7 @@ async def cmd_serve(args) -> None:
             try:
                 this.endpoints = [Endpoint("lan", ip, port) for ip in lan_addresses()]
                 await directory.set_devices(cfg["phone"], [this] + agent.shared_devices)
-                await agent.refresh_presence(scan=True)
+                await agent.refresh_presence(scan=False)  # no background Bluetooth inquiry: it makes audio stutter
                 if isinstance(directory, HTTPDirectory):
                     for msg in await directory.inbox():
                         agent.bus.publish("nudge", msg)
@@ -196,8 +218,34 @@ async def cmd_serve(args) -> None:
     agent.indexer = indexer
     indexer.start()
 
+    if hosted is not None:
+        def show_code(phone: str, code: str) -> None:
+            text = f"Verification code for {phone}: {code}. Type it on the device that's being set up."
+            logging.warning(text)
+            loop.call_soon_threadsafe(agent.bus.publish, "reply", {"ok": True, "text": text, "timings": {}})
+
+        hosted.code_sink = show_code
+
+    def app_info() -> dict:
+        ip = (lan_addresses() or ["127.0.0.1"])[0]
+        return {"directory_hosted": hosted is not None,
+                "directory_url": f"http://{ip}:{cfg.get('directory_port', 8790)}" if hosted is not None else cfg.get("directory"),
+                "name": cfg.get("name"), "phone": cfg.get("phone"), "version": "0.2"}
+
+    async def tray_status() -> None:
+        """Keep the tray tooltip/menu line current: what's playing, what's happening."""
+        while set_status:
+            try:
+                out = await agent.bt.audio_output()
+                busy = agent.busy if getattr(agent, "busy", "") in ("Connecting", "Searching", "Scanning") else ""
+                set_status(busy or f"Playing through {out.name}", "blue" if busy else ("green" if out.transport == "bluetooth" else None))
+            except Exception:
+                pass
+            await asyncio.sleep(4)
+
     asyncio.create_task(heartbeat())
-    await _run_app(make_app(agent, broker=broker, extra_routes=extra, contacts=contacts), args.port, args.open)
+    asyncio.create_task(tray_status())
+    await _run_app(make_app(agent, broker=broker, extra_routes=extra, contacts=contacts, app_info=app_info), args.port, args.open and not set_status)
 
 
 async def cmd_directory(args) -> None:
@@ -216,19 +264,20 @@ async def cmd_directory(args) -> None:
 
 
 async def cmd_setup(args) -> None:
-    from .directory import HTTPDirectory
+    from .directory import HTTPDirectory, InMemoryDirectory
+    from .phones import BY_ISO, country_for_phone, detect_country, flag, parse_country, set_country
     from .util import normalize_phone
 
-    from .phones import BY_ISO, country_for_phone, detect_country, flag, parse_country, set_country
-
     cfg = load_config()
-    cfg["name"] = args.name or input("Your name: ").strip()
+    print("Redtooth setup. Press Enter to accept the suggestion in [brackets].\n")
+    prev = cfg.get("name", "")
+    cfg["name"] = args.name or input(f"Your name [{prev}]: " if prev else "Your name: ").strip() or prev
     guess = cfg.get("country") or detect_country()
     country = parse_country(args.country, guess) if args.country else None
     explicit = country is not None
     while not country:
         c = BY_ISO[guess]
-        answer = input(f"Country for phone numbers [{c.name} (+{c.cc}) — Enter to keep, or type a country or code]: ")
+        answer = input(f"Country for phone numbers [{c.name} (+{c.cc})]: ")
         country = parse_country(answer, guess)
         explicit = bool(answer.strip())
         if not country:
@@ -236,23 +285,47 @@ async def cmd_setup(args) -> None:
     set_country(country)
     raw = args.phone or input(f"Your phone number ({flag(country)} +{BY_ISO[country].cc}, or include + for another country): ").strip()
     cfg["phone"] = normalize_phone(raw)
-    # Accepted the detected region but typed a +44… number: they're more likely in the UK.
     if not explicit and raw.strip().startswith(("+", "00")):
         country = country_for_phone(cfg["phone"], prefer=country) or country
     cfg["country"] = country
     set_country(country)
-    print(f"Phone: {cfg['phone']} · numbers without a country code will be read as {BY_ISO[country].name} (+{BY_ISO[country].cc})")
-    cfg["directory"] = args.directory
-    d = HTTPDirectory(args.directory)
-    await d.start_verification(cfg["phone"])
-    code = args.code or input("Verification code: ").strip()
-    cfg["token"] = await d.verify(cfg["phone"], code, cfg["name"])
+
+    # The directory lets people find each other by phone number. One computer in the group hosts it.
+    directory_url = args.directory
+    if directory_url is None and not args.host:
+        print("\nThe directory is how your contacts' devices find yours. One computer in your household/group hosts it.")
+        answer = input("Address of an existing directory (like http://192.168.1.20:8790), or press Enter to host it on this computer: ").strip()
+        directory_url = answer or None
+    if directory_url and not directory_url.startswith("http"):
+        directory_url = "http://" + directory_url
+    if directory_url and ":" not in directory_url.split("//", 1)[1]:
+        directory_url += ":8790"
+
+    if not directory_url:
+        state = InMemoryDirectory(HOME / "directory.json")
+        cfg["token"] = await state.register(cfg["phone"], cfg["name"])
+        cfg["host_directory"] = True
+        ip = (lan_addresses() or ["127.0.0.1"])[0]
+        cfg["directory"] = f"http://{ip}:{cfg.get('directory_port', 8790)}"
+        print(f"\nThis computer hosts the directory at {cfg['directory']}.")
+        print("To add another device, run setup there and enter that address; the code it asks for appears in Redtooth here.")
+    else:
+        cfg["host_directory"] = False
+        cfg["directory"] = directory_url.rstrip("/")
+        d = HTTPDirectory(cfg["directory"])
+        try:
+            await d.start_verification(cfg["phone"])
+        except Exception as e:
+            sys.exit(f"Couldn't reach the directory at {cfg['directory']} ({e}). Is Redtooth running on that computer, and are you on the same network?")
+        print("A verification code was sent. It appears in Redtooth on the computer that hosts the directory.")
+        code = args.code or input("Verification code: ").strip()
+        cfg["token"] = await d.verify(cfg["phone"], code, cfg["name"])
+    cfg.pop("contacts", None)  # an old setup could point at a file that no longer exists
     save_config(cfg)
-    print(f"Registered {cfg['name']} ({cfg['phone']}).")
+    print(f"\nRegistered {cfg['name']} ({cfg['phone']}). Numbers without a country code are read as {BY_ISO[country].name} (+{BY_ISO[country].cc}).")
     if args.contacts:
         _import_contacts_cli(args.contacts)
-    else:
-        print("Next: `redtooth serve --open`, then Add contacts in the panel (drop a .vcf or .csv export).")
+    print("\nStart Redtooth with:  redtooth start   (it lives in the system tray; add contacts from its Settings)")
 
 
 def _import_contacts_cli(path: str) -> None:
@@ -272,6 +345,47 @@ def _import_contacts_cli(path: str) -> None:
     added = own.merge(book)
     store.save(own)
     print(f"Imported {added} new contacts from {p.name} ({len(own.contacts)} total).")
+
+
+def format_doctor(report: dict) -> str:
+    lines = [f"Bluetooth radio: {report.get('radio')}"]
+    if report.get("packages"):
+        lines.append(f"Packages: {report['packages']}")
+    lines.append("\nPaired devices:")
+    for d in report.get("paired", []) or []:
+        state = "connected" if d.get("connected") else "not connected"
+        lines.append(f"  {d['name']:<30} {d.get('kind', ''):<11} {state:<14} {d.get('address') or ''}")
+    if not report.get("paired"):
+        lines.append("  (none)")
+    eps = report.get("audio_endpoints")
+    if eps is not None:
+        lines.append("\nAudio outputs Windows knows about:")
+        if isinstance(eps, str):
+            lines.append("  " + eps)
+        for e in eps if isinstance(eps, list) else []:
+            lines.append(f"  {e['name']:<42} {'active' if e.get('active') else 'not active':<11} {'bluetooth' if e.get('bluetooth') else ''} {e.get('address') or ''}")
+    out = report.get("audio_output") or {}
+    lines.append(f"\nPlaying through: {out.get('name')} ({out.get('transport')})")
+    lines.append("\nNearby (pairing mode / discoverable):")
+    for d in report.get("nearby", []) or []:
+        lines.append(f"  {d['name']:<30} {d.get('kind', ''):<11} signal {d.get('rssi')}")
+    if not report.get("nearby"):
+        lines.append("  (nothing found)")
+    return "\n".join(lines)
+
+
+async def cmd_doctor(args) -> None:
+    """Paste this output when something about Bluetooth or audio doesn't work."""
+    import platform
+
+    from .bt.base import detect_platform
+
+    logging.getLogger().setLevel(logging.INFO)
+    bt = detect_platform()
+    print(f"Redtooth doctor · {platform.platform()} · Python {platform.python_version()} · backend {bt.name}", flush=True)
+    print("Scanning for 8 seconds (put a pair of headphones in pairing mode to see it appear)...", flush=True)
+    report = await bt.diagnose()
+    print(json.dumps(report, indent=1, default=str) if args.json else "\n" + format_doctor(report))
 
 
 def cmd_contacts(args) -> None:
@@ -301,12 +415,20 @@ def cmd_contacts(args) -> None:
 
 
 def cmd_share(args) -> None:
+    from . import desktop
+
     path = str(Path(args.file).resolve())
+    if not desktop.is_running(args.port):  # right-clicked a file while Redtooth wasn't running: start it
+        desktop.start_detached(desktop.background_command())
+        for _ in range(60):
+            time.sleep(0.5)
+            if desktop.is_running(args.port):
+                break
     try:
         post(args.port, "/api/select", {"path": path})
         open_panel(f"http://127.0.0.1:{args.port}/")
     except OSError:
-        sys.exit("Redtooth isn't running. Start it with `redtooth serve`.")
+        sys.exit("Redtooth isn't running. Start it with `redtooth start`.")
 
 
 def cmd_ask(args) -> None:
@@ -317,12 +439,54 @@ def cmd_ask(args) -> None:
             print(f"  {i}. {o['label']}  {o['detail']}")
 
 
+def _install_windows(remove: bool = False) -> None:
+    """Start menu entry, Send To, and the right-click menu: all per-user, no admin, no console windows."""
+    import winreg
+
+    from .desktop import background_command, tray_icon_image
+
+    appdata = Path(os.environ["APPDATA"])
+    start_lnk = appdata / "Microsoft/Windows/Start Menu/Programs/Redtooth.lnk"
+    sendto_lnk = appdata / "Microsoft/Windows/SendTo/Redtooth.lnk"
+    key = r"Software\Classes\*\shell\Redtooth"
+    if remove:
+        for f in (start_lnk, sendto_lnk, appdata / "Microsoft/Windows/SendTo/Redtooth.cmd"):
+            f.unlink(missing_ok=True)
+        for k in (key + r"\command", key):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, k)
+            except OSError:
+                pass
+        return
+    HOME.mkdir(parents=True, exist_ok=True)
+    ico = HOME / "redtooth.ico"
+    try:
+        tray_icon_image(256).save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)])
+    except Exception as e:
+        logging.info("icon: %s", e)
+    pyw = background_command()[0]
+    (appdata / "Microsoft/Windows/SendTo/Redtooth.cmd").unlink(missing_ok=True)  # replaced by a shortcut (no console flash)
+
+    def shortcut(path: Path, args: str, desc: str) -> None:
+        ps = (f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{path}');$s.TargetPath='{pyw}';"
+              f"$s.Arguments='{args}';$s.IconLocation='{ico}';$s.Description='{desc}';$s.Save()")
+        subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], check=False, capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+    shortcut(start_lnk, "-m redtooth.cli start", "Redtooth")
+    shortcut(sendto_lnk, "-m redtooth.cli share", "Send with Redtooth")
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key) as k:
+        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, "Send with Redtooth")
+        winreg.SetValueEx(k, "Icon", 0, winreg.REG_SZ, str(ico))
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key + r"\command") as k:
+        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, f'"{pyw}" -m redtooth.cli share "%1"')
+
+
 def cmd_install(args) -> None:
     exe = shutil.which("redtooth") or f'"{sys.executable}" -m redtooth.cli'
     if getattr(args, "remove", False):
         if sys.platform.startswith("win"):
-            (Path(os.environ["APPDATA"]) / "Microsoft/Windows/SendTo/Redtooth.cmd").unlink(missing_ok=True)
-            subprocess.run(["reg", "delete", r"HKCU\Software\Classes\*\shell\Redtooth", "/f"], check=False, capture_output=True)
+            _install_windows(remove=True)
         else:
             for f in (Path.home() / ".local/share/applications/redtooth-share.desktop", Path.home() / ".local/share/applications/redtooth.desktop",
                       Path.home() / ".local/share/nautilus/scripts/Send with Redtooth"):
@@ -333,17 +497,8 @@ def cmd_install(args) -> None:
         print("Removed Redtooth from the file menus.")
         return
     if sys.platform.startswith("win"):
-        sendto = Path(os.environ["APPDATA"]) / "Microsoft/Windows/SendTo/Redtooth.cmd"
-        sendto.write_text(f'@echo off\r\n{exe} share %1\r\n')
-        reg = HOME / "redtooth-context-menu.reg"
-        cmd = exe.replace("\\", "\\\\").replace('"', '\\"')
-        reg.write_text(
-            "Windows Registry Editor Version 5.00\r\n\r\n"
-            "[HKEY_CURRENT_USER\\Software\\Classes\\*\\shell\\Redtooth]\r\n@=\"Send with Redtooth\"\r\n\r\n"
-            f"[HKEY_CURRENT_USER\\Software\\Classes\\*\\shell\\Redtooth\\command]\r\n@=\"{cmd} share \\\"%1\\\"\"\r\n"
-        )
-        subprocess.run(["reg", "import", str(reg)], check=False, capture_output=True)
-        print(f"Added Send To › Redtooth and a 'Send with Redtooth' context-menu entry.")
+        _install_windows()
+        print("Added Redtooth to the Start menu, Send To › Redtooth, and 'Send with Redtooth' in the file right-click menu.")
     elif sys.platform == "darwin":
         print("Add a Quick Action: open Shortcuts › New Shortcut › 'Receive Files from Quick Actions / Share Sheet', "
               f"then 'Run Shell Script' with:  {exe} share \"$@\"  (pass input as arguments). See integrations/macos/README.md.")
@@ -364,8 +519,42 @@ def cmd_install(args) -> None:
         print("Added 'Send with Redtooth' to Open With and the Files (Nautilus) Scripts menu, plus a Redtooth app launcher.")
 
 
+def run_serve(args) -> None:
+    from . import desktop
+
+    url = f"http://127.0.0.1:{args.port}/"
+    if desktop.is_running(args.port):
+        print(f"Redtooth is already running: {url}")
+        open_panel(url)
+        return
+    if args.no_tray or not desktop.tray_available():
+        asyncio.run(cmd_serve(args))
+        return
+    if not args.background:
+        print(f"Redtooth is running in the system tray (panel: {url}). Close this window or press Ctrl+C to quit.", flush=True)
+    desktop.run_with_tray(lambda set_status: asyncio.run(cmd_serve(args, set_status)), url, HOME, open_at_start=args.open or not args.background)
+
+
+def cmd_start(args) -> None:
+    from . import desktop
+
+    url = f"http://127.0.0.1:{args.port}/"
+    if desktop.is_running(args.port):
+        open_panel(url)
+        return
+    if not load_config().get("phone"):
+        sys.exit("Run `redtooth setup` first.")
+    desktop.start_detached(desktop.background_command(("--open",)))
+    print("Redtooth is starting in the system tray. The panel opens in a moment.")
+
+
 def main(argv=None) -> None:
-    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    if sys.stdout is None or sys.stderr is None:  # pythonw: no console, so log to a file
+        HOME.mkdir(parents=True, exist_ok=True)
+        log = open(HOME / "redtooth.log", "a", buffering=1, encoding="utf-8")
+        sys.stdout = sys.stdout or log
+        sys.stderr = sys.stderr or log
+    logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["eval"]:
         from .search_eval.run import run
@@ -386,16 +575,23 @@ def main(argv=None) -> None:
     p.add_argument("--embedder", default=None, choices=["auto", "e5", "hash"], help="search model (default: E5, downloaded on first run)")
     p.add_argument("--no-integrations", action="store_true", help="don't add Send with Redtooth to the file menus")
     p.add_argument("--open", action="store_true")
+    p.add_argument("--no-tray", action="store_true", help="run in this terminal without a tray icon")
+    p.add_argument("--background", action="store_true", help=argparse.SUPPRESS)
+    p = sub.add_parser("start", help="start Redtooth in the background (tray icon) and open its panel")
+    p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p = sub.add_parser("setup")
     p.add_argument("--name")
     p.add_argument("--phone")
     p.add_argument("--code")
     p.add_argument("--contacts", help="optional: a contacts export (.vcf, .csv or .json) to import")
     p.add_argument("--country", help="country for numbers without a country code (US, GB, +44, Germany…); default: this computer's region")
-    p.add_argument("--directory", default=os.environ.get("REDTOOTH_DIRECTORY", "http://127.0.0.1:8790"))
+    p.add_argument("--directory", default=os.environ.get("REDTOOTH_DIRECTORY"), help="address of an existing directory (default: ask)")
+    p.add_argument("--host", action="store_true", help="host the directory on this computer without asking")
     p = sub.add_parser("contacts", help="import, add or list contacts (the panel does the same)")
     p.add_argument("action", choices=["import", "add", "list"])
     p.add_argument("files", nargs="*", help="import: files (.vcf/.csv/.json); add: NAME PHONE")
+    p = sub.add_parser("doctor", help="show what Redtooth sees: Bluetooth radio, paired devices, audio outputs, a short scan")
+    p.add_argument("--json", action="store_true")
     p = sub.add_parser("panel")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p = sub.add_parser("share")
@@ -418,13 +614,17 @@ def main(argv=None) -> None:
     if args.cmd == "demo":
         asyncio.run(cmd_demo(args))
     elif args.cmd == "serve":
-        asyncio.run(cmd_serve(args))
+        run_serve(args)
+    elif args.cmd == "start":
+        cmd_start(args)
     elif args.cmd == "setup":
         asyncio.run(cmd_setup(args))
     elif args.cmd == "directory":
         asyncio.run(cmd_directory(args))
     elif args.cmd == "panel":
         open_panel(f"http://127.0.0.1:{args.port}/")
+    elif args.cmd == "doctor":
+        asyncio.run(cmd_doctor(args))
     elif args.cmd == "contacts":
         cmd_contacts(args)
     elif args.cmd == "share":

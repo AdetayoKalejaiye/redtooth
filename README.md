@@ -120,20 +120,29 @@ Calibration reports a held-out score (tune on half the queries, score the other 
 ## Running it for real
 
 ```
-redtooth directory --port 8790                      # one per group/household; verification codes are logged until SMS is wired up
-redtooth setup --directory http://HOST:8790         # name + phone number, verify with the code
-redtooth serve --open                               # panel, always-on receiver on :47800, indexing, file-menu entries
-redtooth ask "send Daniel the deck I edited this morning"
+pip install -e .            # everything, including Windows Bluetooth/audio and the tray icon
+redtooth setup              # name, country, phone number; press Enter to host the directory on this computer
+redtooth start              # runs in the system tray; left-click the icon for the panel
+redtooth doctor             # what Redtooth sees: Bluetooth radio, paired devices, audio outputs, a scan
 ```
 
-On first start `serve` downloads the search model (~120 MB, once) and adds **Send with Redtooth** to the
-file menus (`--no-integrations` to skip). Contacts: **Add contacts** in the panel takes a `.vcf`/`.csv`
-export from Google, iCloud, Outlook or Android (it offers any export already in Downloads), or add people
-by hand; macOS Contacts and Windows Outlook are read automatically. `redtooth contacts import FILE` does the
-same from the terminal. Everything platform-specific (WinRT, toasts, audio switching) installs with the base
-package.
+- **One process.** `redtooth start` runs Redtooth in the background with a tray icon (no console window).
+  Left-click opens a compact panel above the tray; right-click has Add a device, Your devices, Contacts,
+  Start when I sign in, and Quit. `redtooth serve --no-tray` runs it in a terminal instead.
+- **The directory** (who uses Redtooth, by phone number) is hosted by one computer in the group, inside that
+  computer's Redtooth on port 8790. Other devices run `redtooth setup`, enter its address, and type the code
+  that appears in the host's panel. `redtooth directory` still runs one on its own.
+- **Bluetooth.** The panel shows each paired headphone/speaker with its real state (Connected / Not
+  connected) and a Connect, Use or Disconnect button. **Add a device** scans for devices in pairing mode and
+  pairs them in place. Redtooth never scans in the background (Bluetooth inquiry makes audio stutter).
+- **Your devices** (Settings) is where you mark headphones and speakers as yours and name them, so contacts
+  who use Redtooth can ask for "Rob's headphones".
+- **Contacts** (Settings) takes a `.vcf`/`.csv` export from iPhone/iCloud, Android, Google or Outlook, or
+  people added by hand; macOS Contacts and Windows Outlook are read automatically.
+- On first start Redtooth downloads the search model (~120 MB, once) and adds Redtooth to the Start menu,
+  Send To, and the file right-click menu (`--no-integrations` to skip).
 
-Config lives in `~/.redtooth/config.json` (contacts file, folders to index, inbox, shared devices). To make your headphones findable by friends, tap **Share** beside them in the panel. That is Daniel's step in the main flow.
+Config lives in `~/.redtooth/config.json`; the log (when running from the tray) in `~/.redtooth/redtooth.log`.
 
 ## Platform status
 
@@ -141,7 +150,8 @@ Config lives in `~/.redtooth/config.json` (contacts file, folders to index, inbo
 |---|---|
 | Agent, search, contacts, directory, transfers, resume, panel | Implemented and covered by tests |
 | Simulated Bluetooth | Implemented, drives the demo and tests |
-| Linux / macOS / Windows Bluetooth + audio routing | Implemented against each OS's tools/APIs, **not yet run on hardware** |
+| Windows Bluetooth + audio | WinRT association endpoints (real connected state, scan with inquiry, in-place pairing), Bluetooth audio one-shot reconnect/disconnect, Core Audio output switching. Written against the API stubs; **not yet run on hardware**: `redtooth doctor` shows what it sees |
+| Linux / macOS Bluetooth + audio routing | bluetoothctl/pactl and blueutil/SwitchAudioSource; **not yet run on hardware** |
 | Wi-Fi Direct | Route preference implemented; group formation for Linux (`wpa_cli`) and Windows (WinRT) not yet tested on hardware. macOS has no public API, so Macs use the LAN |
 | E5 embeddings | Default; downloaded automatically on first start (falls back to keyword search if offline, retries next start; opt out with `REDTOOTH_EMBEDDER=hash`). Not yet scored: the model host was unreachable from the build machine. Run `redtooth eval --calibrate --save` once it's downloaded |
 | Phones | The panel is responsive and the wire protocol is documented in `docs/PROTOCOL.md`. iOS/Android need native clients for Bluetooth, the share sheet and background receiving |
