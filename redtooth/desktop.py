@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
@@ -35,13 +36,60 @@ def background_command(extra: tuple[str, ...] = ()) -> list[str]:
     return [exe, "-m", "redtooth.cli", "serve", "--background", *extra]
 
 
-def start_detached(cmd: list[str]) -> None:
-    kw: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "close_fds": True}
+def start_detached(cmd: list[str], log_path: Optional[Path] = None) -> subprocess.Popen:
+    """Start without a console window. Output goes to the log file, never nowhere."""
+    out = open(log_path, "a", encoding="utf-8") if log_path else subprocess.DEVNULL
+    kw: dict = {"stdin": subprocess.DEVNULL, "stdout": out, "stderr": subprocess.STDOUT if log_path else subprocess.DEVNULL, "close_fds": True}
     if sys.platform.startswith("win"):
-        kw["creationflags"] = 0x00000008 | 0x00000200 | 0x08000000  # DETACHED_PROCESS | NEW_PROCESS_GROUP | NO_WINDOW
+        kw["creationflags"] = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
     else:
         kw["start_new_session"] = True
-    subprocess.Popen(cmd, **kw)
+    return subprocess.Popen(cmd, **kw)
+
+
+def port_state(port: int) -> str:
+    """'ours' (a current Redtooth answers), 'other' (something else, e.g. an older Redtooth, holds the port), or 'free'."""
+    import socket
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/app", timeout=1.5) as r:
+            return "ours" if r.status == 200 else "other"
+    except urllib.error.HTTPError:
+        return "other"
+    except Exception:
+        pass
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            return "other"
+    except OSError:
+        return "free"
+
+
+def pids_on_port(port: int) -> list[tuple[int, str]]:
+    try:
+        import psutil
+
+        out = []
+        for c in psutil.net_connections("tcp"):
+            if c.status == "LISTEN" and c.laddr and c.laddr.port == port and c.pid:
+                try:
+                    out.append((c.pid, " ".join(psutil.Process(c.pid).cmdline())))
+                except Exception:
+                    out.append((c.pid, "?"))
+        return out
+    except Exception:
+        return []
+
+
+def message_box(title: str, text: str) -> None:
+    """A visible error even when there's no console (Windows)."""
+    if sys.platform.startswith("win"):
+        try:
+            ctypes.windll.user32.MessageBoxW(None, text, title, 0x10)
+            return
+        except Exception:
+            pass
+    print(f"{title}: {text}", file=sys.stderr)
 
 
 def is_running(port: int) -> bool:
@@ -199,9 +247,11 @@ def _navigate(url: str, view: str) -> None:
 
 
 def open_panel(url: str, home: Optional[Path] = None, view: Optional[str] = None) -> None:
-    """A compact app window docked above the tray (Edge/Chrome --app), else the default browser.
-    If the window is already open it's brought to the front instead of opening another."""
+    """Open the panel in your browser. Set REDTOOTH_PANEL=window for a compact app window docked above the tray."""
     global _window
+    if os.environ.get("REDTOOTH_PANEL", "browser") != "window":
+        webbrowser.open(f"{url}#{view}" if view else url)
+        return
     if _window and _window.poll() is None and _focus_existing():
         if view:
             _navigate(url, view)
@@ -300,25 +350,40 @@ def tray_available() -> bool:
         return False
 
 
-def run_with_tray(serve: Callable[[Callable[[str, Optional[str]], None]], None], url: str, home: Path, open_at_start: bool) -> None:
-    """Run the Redtooth service on a background thread and the tray icon on this (main) thread."""
+def run_with_tray(serve: Callable[[Callable[[str, Optional[str]], None]], None], url: str, home: Path, open_at_start: bool,
+                  log_path: Optional[Path] = None) -> None:
+    """Run the Redtooth service on a background thread and the tray icon on this (main) thread.
+    If either fails, say so out loud (message box + log) instead of disappearing."""
     tray = Tray(url, home, on_quit=lambda: os._exit(0))
+    where = f"\n\nDetails are in {log_path}" if log_path else ""
 
     def service() -> None:
         try:
             serve(tray.set_status)
-        except Exception:
+            err = "Redtooth stopped unexpectedly."
+        except SystemExit as e:
+            err = str(e.code) if e.code not in (None, 0) else "Redtooth stopped."
+        except BaseException as e:  # noqa: BLE001 - anything, so it's never silent
             log.exception("Redtooth stopped")
-            os._exit(1)
+            err = f"{type(e).__name__}: {e}"
+        message_box("Redtooth couldn't keep running", err + where)
+        os._exit(1)
 
-    threading.Thread(target=service, name="redtooth-service", daemon=True).start()
+    worker = threading.Thread(target=service, name="redtooth-service", daemon=True)
+    worker.start()
     if open_at_start:
+        port = int(url.rsplit(":", 1)[1].strip("/"))
+
         def first_open() -> None:
-            for _ in range(60):
-                if is_running(int(url.rsplit(":", 1)[1].strip("/"))):
+            for _ in range(240):  # the first start can take a while (search model download)
+                if port_state(port) == "ours":
                     open_panel(url, home)
                     return
                 time.sleep(0.5)
 
         threading.Thread(target=first_open, daemon=True).start()
-    tray.run()
+    try:
+        tray.run()
+    except BaseException:  # noqa: BLE001 - no tray on this system: keep running without it
+        log.exception("tray icon unavailable; Redtooth keeps running without it")
+        worker.join()

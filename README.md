@@ -122,13 +122,16 @@ Calibration reports a held-out score (tune on half the queries, score the other 
 ```
 pip install -e .            # everything, including Windows Bluetooth/audio and the tray icon
 redtooth setup              # name, country, phone number; press Enter to host the directory on this computer
-redtooth start              # runs in the system tray; left-click the icon for the panel
+redtooth serve --open       # runs in this window, opens the panel in your browser, adds a tray icon
+redtooth start              # same, but in the background with no window (waits until it's up, or shows why not)
+redtooth stop               # stops it (also an older version still holding the port)
 redtooth doctor             # what Redtooth sees: Bluetooth radio, paired devices, audio outputs, a scan
 ```
 
-- **One process.** `redtooth start` runs Redtooth in the background with a tray icon (no console window).
-  Left-click opens a compact panel above the tray; right-click has Add a device, Your devices, Contacts,
-  Start when I sign in, and Quit. `redtooth serve --no-tray` runs it in a terminal instead.
+- **One process.** The panel is a web page (http://127.0.0.1:8787). The tray icon is an extra way in:
+  left-click opens the panel, right-click has Add a device, Your devices, Contacts, Start when I sign in,
+  and Quit. `--no-tray` skips the icon. Running in the background logs to `~/.redtooth/redtooth.log`, and any
+  failure to start is printed by `redtooth start` (and shown in a message box), never silent.
 - **The directory** (who uses Redtooth, by phone number) is hosted by one computer in the group, inside that
   computer's Redtooth on port 8790. Other devices run `redtooth setup`, enter its address, and type the code
   that appears in the host's panel. `redtooth directory` still runs one on its own.
