@@ -124,6 +124,10 @@ class BluetoothPlatform(ABC):
         """on | off | missing | unknown"""
         return "on"
 
+    def setup_issue(self) -> Optional[str]:
+        """Something missing from the install that limits this backend, with the command that fixes it."""
+        return None
+
     async def diagnose(self) -> dict:
         """What this backend sees, for `redtooth doctor`."""
         return {

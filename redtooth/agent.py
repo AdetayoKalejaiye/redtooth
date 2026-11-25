@@ -67,6 +67,7 @@ class Agent:
         self.indexer = None  # files.indexer.Indexer when running as a service
         self.shared_devices: list[Device] = []  # devices you marked as yours (friends can ask for them by name)
         self.persist_shared = None
+        self._setup_issue = bt.setup_issue() if hasattr(bt, "setup_issue") else None
         self.publish_devices = None  # async callback: push this computer's device list to the directory
 
     # ------------------------------------------------------------ plumbing
@@ -650,15 +651,19 @@ class Agent:
                 dd["label"] = marked[d.id].alias
             audio[d.id] = {**cur, **{k: v for k, v in dd.items() if v not in (None, [], "")}}
             audio[d.id]["connected"], audio[d.id]["paired"] = dd["connected"], dd["paired"]
-        # Things you'd pair from here: headphones, speakers, and unidentified devices (often headphones with odd names).
-        nearby = [d.to_dict() for d in self.last_scan if d.id not in paired_ids and d.id not in audio and d.kind in AUDIO_KINDS | {"other"}]
+        # Everything a normal Bluetooth scan finds; audio first.
+        nearby = sorted((d.to_dict() for d in self.last_scan if d.id not in paired_ids and d.id not in audio),
+                        key=lambda d: (d["kind"] not in AUDIO_KINDS, -(d.get("rssi") or -100)))
+        others = [{**d.to_dict(), "mine": d.id in marked} for d in paired if d.kind not in AUDIO_KINDS]
         people = [p.to_dict() for p in self.people.all_people() if p.has_app or p.nearby][:8]
         return {
             "me": {"name": self.me.name, "phone": self.me.phone},
             "audio_output": {**out.to_dict(), "device": next((d for d in audio.values() if d.get("active")), None)},
             "audio_devices": sorted(audio.values(), key=lambda d: (not d.get("active"), not d.get("connected"), not d.get("paired"), d.get("label", ""))),
             "nearby_devices": nearby,
+            "other_devices": others,
             "radio": radio,
+            "setup_issue": self._setup_issue,
             "people": people,
             "selected_file": self.ctx.file.to_dict() if self.ctx.file else None,
             "pending": self.ctx.pending.to_dict() if self.ctx.pending else None,
