@@ -153,7 +153,8 @@ async def cmd_serve(args, set_status=None) -> None:
         try:
             await _web.TCPSite(drunner, "0.0.0.0", dport).start()
         except OSError as e:
-            logging.warning("couldn't open the directory on port %s (%s); is `redtooth directory` already running?", dport, e)
+            logging.warning("Port %s is taken, probably by an old `redtooth directory` window. Close it (or run `redtooth stop`) "
+                            "so other devices can reach this computer's directory. (%s)", dport, e)
     else:
         directory = HTTPDirectory(cfg["directory"], cfg.get("token"))
 
@@ -608,9 +609,16 @@ def cmd_stop(args) -> None:
         except Exception:
             pass
         print("Redtooth stopped.")
+    for pid, cmd in desktop.pids_on_port(int(load_config().get("directory_port", 8790))):
+        if "redtooth" in cmd.lower() and " directory" in cmd:  # an old separate `redtooth directory` window
+            import psutil
+
+            psutil.Process(pid).terminate()
+            print(f"Stopped the separate directory (PID {pid}); Redtooth hosts it itself now.")
+    if state == "ours":
         return
     stopped = False
-    for pid, cmd in desktop.pids_on_port(args.port):
+    for pid, cmd in desktop.pids_on_port(args.port) + desktop.pids_on_port(int(load_config().get("directory_port", 8790))):
         if "redtooth" in cmd.lower():
             import psutil
 

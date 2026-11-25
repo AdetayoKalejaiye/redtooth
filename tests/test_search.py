@@ -99,3 +99,10 @@ def test_ivf_keeps_up_with_changes(tmp_path, monkeypatch):
     again = FileIndex(tmp_path / "ivf.db")
     assert again.ivf_status()["ivf"]
     assert again.search(parse("Find the deck about customer churn").file)[0].name == "Retention Plan.pptx"
+
+
+def test_embedder_input_is_cleaned():
+    """Windows file names can carry lone surrogates; the tokenizer rejects them, so they're replaced first."""
+    from redtooth.files.embed import _clean
+
+    assert _clean("caf\udce9 deck") == "caf? deck" and _clean(None) == "" and _clean(3) == "3"

@@ -315,7 +315,18 @@ class Indexer:
                     st.name_only += 1
             items.append((os.path.basename(path), chunks))
             metas.append(f)
-        vecs = self.index.embed_many(items)
+        try:
+            vecs = self.index.embed_many(items)
+        except Exception as e:  # one bad file mustn't stop indexing: retry one by one, then name only
+            log.warning("embedding a batch failed (%s); retrying file by file", e)
+            vecs = []
+            for i, (name, chunks) in enumerate(items):
+                try:
+                    vecs.append(self.index.embed_many([(name, chunks)])[0])
+                except Exception:
+                    st.errors += 1
+                    items[i] = (name, [])
+                    vecs.append(self.index.embed_many([(name.encode("ascii", "replace").decode(), [])])[0])
         for f, (name, chunks), v in zip(metas, items, vecs):
             self.index.write_file(f[0], f[1], f[3], f"{f[1]}:{f[2]}", chunks, v, commit=False)
             self.order.append(f[0])
@@ -387,7 +398,10 @@ class Indexer:
                     pass
             self.status.watching = self._start_watcher()
             if first_pass:
-                self.run_once()
+                try:
+                    self.run_once()
+                except Exception:
+                    log.exception("indexing pass failed; will retry")
             else:
                 self.status.complete, self.status.recent_done = True, True
                 self.status.in_scope = len(self.index.signatures())
@@ -397,9 +411,13 @@ class Indexer:
             interval = SAFETY_RESCAN if self.status.watching else POLL
             while not self._stop.is_set():
                 time.sleep(1.0)
-                self._drain_events()
-                if time.time() - last_full >= interval:
-                    self.run_once()
+                try:
+                    self._drain_events()
+                    if time.time() - last_full >= interval:
+                        self.run_once()
+                        last_full = time.time()
+                except Exception:
+                    log.exception("indexing error; continuing")
                     last_full = time.time()
 
         self._thread = threading.Thread(target=loop, name="redtooth-indexer", daemon=True)
