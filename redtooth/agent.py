@@ -3,6 +3,7 @@ and carries the selected file, person and device forward."""
 from __future__ import annotations
 
 import asyncio
+import re
 import difflib
 import logging
 from typing import Any, Optional
@@ -18,7 +19,7 @@ from .models import AUDIO_KINDS, APP_KINDS, Device, FileHit, Option, Person, Que
 from .store import Store
 from .transfer.routes import Router
 from .transfer.sender import Sender, Transfer
-from .util import new_id, now_ms, possessive, when_label
+from .util import drop_owner, new_id, now_ms, possessive, when_label
 
 log = logging.getLogger("redtooth.agent")
 DEST_ORDER = {"phone": 0, "laptop": 1, "tablet": 2, "desktop": 3}
@@ -68,6 +69,7 @@ class Agent:
         self.shared_devices: list[Device] = []  # devices you marked as yours (friends can ask for them by name)
         self.persist_shared = None
         self._setup_issue = bt.setup_issue() if hasattr(bt, "setup_issue") else None
+        self.this_device_id: Optional[str] = None  # this computer's Redtooth device id (not a send target for "my laptop")
         self.publish_devices = None  # async callback: push this computer's device list to the directory
 
     # ------------------------------------------------------------ plumbing
@@ -215,6 +217,10 @@ class Agent:
             if rest:
                 return self._ask_device(owner, rest, st)
             return await self._pairing_mode(owner, st.get("kind"), st.get("hint"))
+        if q.kind == "choose_own_device":
+            if not self.ctx.file:
+                return Reply("Which file should I send?", ok=False)
+            return await self._start_send(self.ctx.file, st["person"], opt.payload)
         if q.kind == "choose_device":
             owner = st["owner"]
             if opt.id == "none":
@@ -315,6 +321,10 @@ class Agent:
 
     async def _do_connect(self, dev: Device, owner: Person) -> Reply:
         whose = "your" if owner.is_self else possessive(owner.first)
+        if dev.kind not in AUDIO_KINDS and dev.paired:
+            noun = {"phone": "a phone", "tablet": "a tablet", "laptop": "a computer", "desktop": "a computer"}.get(dev.kind, "not an audio device")
+            return Reply(f"{whose.capitalize()} {drop_owner(dev.label(), owner.first)} is {noun}, so there's nothing to play audio through. "
+                         f"To send it a file, say “send <file> to my {dev.kind if dev.kind in ('phone', 'tablet') else 'phone'}”.", ok=False, device=dev)
         self.status("Connecting", f"{whose} {dev.label()}")
         out: Outcome = await self.devices.connect(dev, owner)
         self.ctx.device = dev
@@ -328,7 +338,7 @@ class Agent:
             return Reply(f"{whose.capitalize()} {dev.label()} didn't answer{secs}, so they're not connected. They need to be switched on (out of the case), "
                          f"nearby, and not connected to another phone. Then try again.", ok=False, device=dev, status="Not connected", timings={"connect_ms": out.ms})
         if out.verified:
-            return Reply(f"Connected to {whose} {dev.label()}. Audio is playing through them.", device=dev, person=owner, status="Audio output", timings={"connect_ms": out.ms})
+            return Reply(f"Connected to {whose} {drop_owner(dev.label(), owner.first)}. Audio is playing through them.", device=dev, person=owner, status="Audio output", timings={"connect_ms": out.ms})
         cur = await self.bt.audio_output()
         return Reply(f"{whose.capitalize()} {dev.label()} are connected, but Windows is still playing through {cur.name}. "
                      f"Choose {dev.label()} from the speaker icon in the taskbar.", device=dev, person=owner, status="Connected", ok=False, timings={"connect_ms": out.ms})
@@ -459,13 +469,19 @@ class Agent:
             perr.timings = timings
             return perr
         assert person
-        if person.is_self:
-            return Reply("That's you. Who should I send it to?", ok=False)
         if not hits:
             recent = [h for h in self.index.recent(4)]
             msg = f"I couldn't find a {fq.describe()}.{self._index_note()}" if not fq.refers_previous else "Which file? Nothing is selected yet."
             return Reply(msg + (" Here are your most recent files." if recent else ""), files=recent, person=person, ok=False, timings=timings)
-        dest = self._pick_destination(person, intent.device_kind)
+        if person.is_self:
+            person, dest, ask = await self._own_destination(intent.device_kind)
+            if ask:
+                ask.timings = timings
+                if not self._file_ambiguous(fq, hits):
+                    self.ctx.set_file(hits[0])
+                return ask
+        else:
+            dest = self._pick_destination(person, intent.device_kind)
         if self._file_ambiguous(fq, hits):
             q = self._file_question(fq, hits, {"person": person, "device": dest, "t0": t0})
             return Reply(q.prompt, question=q, files=hits[:3], person=person, timings=timings, status="Waiting for you")
@@ -474,9 +490,50 @@ class Agent:
         r.timings.update(timings)
         return r
 
+    async def _own_destination(self, kind: Optional[str]) -> tuple[Person, Optional[Device], Optional[Reply]]:
+        """“Send it to my phone”: your other devices running Redtooth first, else a phone paired with this
+        computer over plain Bluetooth. Returns (you, device, or a reply/question)."""
+        me = self.me
+        try:
+            prof = (await self.directory.lookup([self.me.phone])).get(self.me.phone)
+        except Exception:
+            prof = None
+        if prof:
+            me = Person(self.me.contact, profile=prof, is_self=True)
+        want = kind or "phone"
+        app_devs = [d for d in (prof.devices if prof else []) if d.kind in APP_KINDS and d.endpoints and d.id != self.this_device_id
+                    and (d.kind == want or (want == "laptop" and d.kind == "desktop"))]
+        if app_devs:
+            return me, app_devs[0], None
+        groups = {"phone": ("phone",), "tablet": ("tablet", "phone"), "laptop": ("laptop", "desktop"), "desktop": ("desktop", "laptop")}.get(want, ("phone",))
+        marked = self.mine()
+        first = self.me.first.lower()
+        paired = [d for d in await self.bt.paired() if d.kind in groups]
+        if not paired:
+            return me, None, Reply(f"I don't see a {want} paired with this computer. Use “Pair new device” (on Android: Settings › Connected devices › "
+                                   f"Pair new device, and keep that screen open), then ask again.", ok=False)
+        ranked = sorted(paired, key=lambda d: (d.id not in marked, first not in d.name.lower(), not d.connected, d.name))
+        best = ranked[0]
+        if len(ranked) == 1 or best.id in marked or first in best.name.lower():
+            return me, best, None
+        opts = [Option(d.id, d.label(), "Connected" if d.connected else "Paired with this computer", d) for d in ranked[:5]]
+        q = Question(new_id("q_"), "choose_own_device", f"Which one is your {want}?", opts, {"person": me})
+        self.ctx.pending = q
+        return me, None, Reply(q.prompt + " (Mark it as yours in Bluetooth devices and I won't ask again.)", question=q, status="Waiting for you")
+
     async def _start_send(self, hit: FileHit, person: Person, dest: Optional[Device], t0: Optional[float] = None) -> Reply:
         self.ctx.set_person(person)
         self.ctx.set_file(hit)
+        if dest is not None and not dest.endpoints and dest.address:
+            # A paired phone without Redtooth: plain Bluetooth file transfer (it shows an Accept prompt).
+            whose = "your" if person.is_self else possessive(person.first)
+            if re.search(r"iphone|ipad", f"{dest.name} {dest.model or ''}", re.I):
+                return Reply(f"iPhones don't accept Bluetooth file transfers. Install Redtooth on {whose} {dest.label()}, or use AirDrop.", ok=False, files=[hit])
+            self.ctx.device = dest
+            t = self.sender.start_bluetooth(hit.path, person, dest, self.bt.push_file)
+            self.ctx.last_transfer_id = t.id
+            return Reply(f"Sending {hit.name} to {whose} {drop_owner(dest.label(), person.first)} over Bluetooth. Tap Accept on it when it asks.", person=person, files=[hit],
+                         transfer_id=t.id, status="Waiting for you" if person.is_self else f"Waiting for {person.first}")
         if not person.has_app:
             return Reply(f"{person.first} doesn't use Redtooth yet, so I can't deliver to their devices. Send them an invite and I'll remember their devices once they join.", person=person, files=[hit], ok=False)
         dest = dest or self._pick_destination(person, None)

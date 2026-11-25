@@ -93,6 +93,24 @@ class SimBluetooth(BluetoothPlatform):
             self.world.output = AudioOutput("MacBook Pro Speakers")
         return True
 
+    def push_file(self, address: str, path: str, progress, cancel) -> None:
+        """Simulated OBEX push: the phone accepts if it's in range and paired."""
+        import os
+        import time
+
+        from ..transfer.obex import ObexError
+
+        r = next((r for r in self.world.radios.values() if r.device.address == address), None)
+        if not r or not r.in_range:
+            raise ObexError("couldn't reach the phone: it's out of range or switched off", "unreachable")
+        progress(0, "waiting")
+        time.sleep(self.world.delay)
+        if getattr(r, "decline_files", False):
+            raise ObexError("declined on the phone", "declined")
+        size = os.path.getsize(path)
+        progress(size // 2, "sending")
+        progress(size, "saved")
+
     async def audio_output(self) -> AudioOutput:
         return self.world.output
 

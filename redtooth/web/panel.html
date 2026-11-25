@@ -212,7 +212,7 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
       </div>
       <div class="list" id="audioList" style="margin-top:8px"></div>
       <div class="scanbar" id="scanBar">
-        <button class="pill" id="scanBtn">Add a device</button>
+        <button class="pill" id="scanBtn">Pair new device</button>
         <span class="hint grow" id="scanHint"></span>
       </div>
       <div class="list" id="nearbyList"></div>
@@ -244,8 +244,8 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 
     <div class="view settings hidden" id="settings">
       <section class="tile" id="sec-devices">
-        <h2>Your devices</h2>
-        <p>Mark the devices that are yours: headphones, speakers, your phone. Then anyone in your contacts who uses Redtooth can ask for them by name — “connect to <span class="me-first">your</span>’s speaker” — and their Redtooth knows exactly which one you mean, even before it’s paired with their device. Nothing is shared until you mark it.</p>
+        <h2>Bluetooth devices</h2>
+        <p>Everything paired with this computer. For the ones that belong to you, turn on <b>Mine</b>: then a contact who uses Redtooth can say “connect to <span class="me-first">your</span>’s speaker” and their Redtooth knows exactly which one you mean. Marking your phone also tells Redtooth where “send it to my phone” goes. Nothing is shared until you turn it on.</p>
         <div id="myDevices"><div class="note">Loading…</div></div>
       </section>
 
@@ -370,7 +370,7 @@ function renderAudio(){
   const nPaired = S.audio_devices.filter(d => d.paired).length + (S.other_devices || []).length;
   const nMine = S.audio_devices.filter(d => d.mine).length + (S.other_devices || []).filter(d => d.mine).length;
   list.innerHTML += `<button class="linkrow" data-goto="devices"><div class="icon sm">${I.headphones}</div>
-      <div class="grow"><b>Your devices</b><span class="sub">${nPaired ? `${nPaired} paired · ${nMine ? nMine + ' marked as yours' : 'mark which are yours'} · connect` : 'Nothing paired yet'}</span></div><span class="chev">›</span></button>`;
+      <div class="grow"><b>Bluetooth devices</b><span class="sub">${nPaired ? `${nPaired} paired with this computer · connect, disconnect, choose what contacts can ask for` : 'Nothing paired yet'}</span></div><span class="chev">›</span></button>`;
   list.classList.remove('hidden');
   renderNearby();
 }
@@ -380,9 +380,9 @@ function renderNearby(){
   const el = $('#nearbyList'), hint = $('#scanHint'), btn = $('#scanBtn');
   const found = (S.nearby_devices || []);
   btn.disabled = scanning || S.radio === 'off' || S.radio === 'missing';
-  btn.textContent = scanning ? 'Scanning…' : found.length ? 'Scan again' : 'Add a device';
+  btn.textContent = scanning ? 'Looking…' : found.length ? 'Look again' : 'Pair new device';
   hint.innerHTML = scanning ? '<span class="state"><span class="spin"></span>Looking (about 10 s). Headphones: pairing mode. Android: Settings › Connected devices › Pair new device. iPhone: Settings › Bluetooth. Keep that screen open.</span>'
-    : found.length ? `${found.length} found nearby` : 'Pair headphones, speakers, phones…';
+    : found.length ? `${found.length} ready to pair` : 'Headphones, speakers, phones…';
   el.innerHTML = found.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
       <div class="grow"><div class="ellipsis nm">${esc(d.name)}</div><div class="sub">${esc(KIND_LABEL[d.kind] || 'Device')}${d.rssi != null ? ' · ' + ((d.rssi > -65) ? 'close by' : 'in range') : ''}</div></div>
       <button class="pill tint" data-pair="${esc(d.id)}">Pair</button></div>`).join('');
@@ -467,14 +467,14 @@ async function loadMyDevices(){
   document.querySelectorAll('.me-first').forEach(e => e.textContent = r.me);
   const el = $('#myDevices');
   const devs = r.devices;
-  if (!devs.length){ el.innerHTML = '<div class="note">Nothing is paired with this computer yet. Use “Add a device” on the main screen first.</div>'; return; }
+  if (!devs.length){ el.innerHTML = '<div class="note">Nothing is paired with this computer yet. Use “Pair new device” on the main screen first.</div>'; return; }
   const audio = ['headphones','earbuds','speaker'];
   el.innerHTML = devs.map(d => `<div class="mine" data-dev="${esc(d.id)}">
       <div class="head"><div class="icon sm">${kindIcon(d.kind)}</div>
         <div class="grow"><div class="ellipsis nm">${esc(d.label || d.model || d.name)}</div>
-          <div class="sub state">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.connected ? '<i class="dot green"></i>Connected' : 'Not connected'}${d.mine ? ' · <b style="color:var(--tint)">yours</b>' : ''}</div></div>
+          <div class="sub state">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.connected ? '<i class="dot green"></i>Connected' : 'Not connected'}${d.mine ? ' · <b style="color:var(--tint)">mine</b>' : ''}</div></div>
         <div class="acts">${audio.includes(d.kind) ? (d.connected ? `<button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button>` : `<button class="pill" data-connect="${esc(d.id)}">Connect</button>`) : ''}</div></div>
-      <div class="toggle" style="padding:2px 0 0 38px;border:0"><span class="sub">This is mine</span><button class="sw ${d.mine?'on':''}" data-mine="${esc(d.id)}" aria-label="This is mine"></button></div>
+      <div class="toggle" style="padding:2px 0 0 38px;border:0"><span class="sub">Mine · contacts can ask for it</span><button class="sw ${d.mine?'on':''}" data-mine="${esc(d.id)}" aria-label="Mine, contacts can ask for it"></button></div>
       <div class="alias ${d.mine?'':'hidden'}"><input class="input" data-alias="${esc(d.id)}" placeholder="What friends call it, e.g. ${esc(r.me)}’s ${esc((KIND_LABEL[d.kind] || 'device').toLowerCase())}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button></div>
     </div>`).join('');
 }

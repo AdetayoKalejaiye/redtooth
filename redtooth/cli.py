@@ -204,6 +204,7 @@ async def cmd_serve(args, set_status=None) -> None:
     # Always listening for incoming files; accept from a notification or the panel.
     broker = AcceptBroker(native=True, auto_accept=lambda o: o.sender_phone == cfg["phone"])
     this = Device(cfg.setdefault("device_id", f"dev_{socket.gethostname()}"), cfg.get("device_name") or socket.gethostname(), cfg.get("device_kind", "laptop"), has_app=True, wifi_direct=agent.bt.wifi_direct)
+    agent.this_device_id = this.id
     rx = Receiver(this, Path(cfg.get("inbox", Path.home() / "Downloads")).expanduser(), broker.ask, wire_incoming(agent, contacts))
     port = await rx.start("0.0.0.0", args.transfer_port)
     this.endpoints = [Endpoint("lan", ip, port) for ip in lan_addresses()]

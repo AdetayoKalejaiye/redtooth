@@ -124,6 +124,12 @@ class BluetoothPlatform(ABC):
         """on | off | missing | unknown"""
         return "on"
 
+    def push_file(self, address: str, path: str, progress, cancel) -> None:
+        """Send a file over plain Bluetooth (OBEX Object Push). Blocking; runs in a worker thread."""
+        from ..transfer.obex import ObexError
+
+        raise ObexError("Bluetooth file transfer isn't available on this platform yet")
+
     def setup_issue(self) -> Optional[str]:
         """Something missing from the install that limits this backend, with the command that fixes it."""
         return None
