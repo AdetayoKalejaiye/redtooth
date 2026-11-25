@@ -65,8 +65,9 @@ class Agent:
         self.last_scan: list[Device] = []
         self.busy: Optional[str] = None
         self.indexer = None  # files.indexer.Indexer when running as a service
-        self.shared_devices: list[Device] = []  # my devices friends may connect to
+        self.shared_devices: list[Device] = []  # devices you marked as yours (friends can ask for them by name)
         self.persist_shared = None
+        self.publish_devices = None  # async callback: push this computer's device list to the directory
 
     # ------------------------------------------------------------ plumbing
     def _on_transfer(self, t: Transfer) -> None:
@@ -94,16 +95,18 @@ class Agent:
         except Exception as e:  # directory unreachable: keep last known
             log.warning("directory lookup failed: %s", e)
 
-    async def refresh_presence(self, scan: bool = True) -> None:
+    async def refresh_presence(self, scan: bool = False) -> None:
         """Who is nearby: their registered devices show up over Bluetooth or answer on the LAN."""
         await self.refresh_people()
         seen = []
         if scan:
             try:
-                seen = await self.bt.scan(2.0)
+                seen = await self.bt.scan(4.0)
             except Exception:
                 seen = []
             self.last_scan = seen
+        else:
+            seen = self.last_scan
         addrs = {d.address for d in seen if d.address}
         near: set[str] = set()
         for phone, prof in self.people.profiles.items():
@@ -259,11 +262,19 @@ class Agent:
         if err:
             return err
         assert owner
-        kind = intent.device_kind if intent.device_kind in AUDIO_KINDS else ("headphones" if not intent.device_kind else intent.device_kind)
+        if not intent.device_hint:
+            # "connect to my WH-CH720N": a device name in the request picks that device.
+            names = {d.name for d in await self.bt.paired()} | {d.alias for d in self.shared_devices if d.alias} | {d.name for d in self.last_scan}
+            low = intent.text.lower()
+            hit = next((n for n in sorted((n for n in names if n), key=len, reverse=True) if n.lower() in low), None)
+            if hit:
+                intent.device_hint = hit
+                intent.device_kind = intent.device_kind if intent.device_kind in AUDIO_KINDS else None
+        kind = intent.device_kind if intent.device_kind in AUDIO_KINDS else ("headphones" if not intent.device_kind and not intent.device_hint else intent.device_kind)
         if kind in APP_KINDS:
             return Reply(f"I can send files to {possessive(owner.first)} {kind}. To play audio, ask for headphones or a speaker.", ok=False)
         noun = "your" if owner.is_self else possessive(owner.first)
-        self.status("Searching", f"Looking for {noun} {kind}")
+        self.status("Searching", f"Looking for {noun} {intent.device_hint or kind}")
         out = await self.devices.find(owner, kind, intent.device_hint)
         self.metrics.record("find_device_ms", out.ms, outcome=out.kind)
         timings = {"find_device_ms": out.ms}
@@ -287,9 +298,16 @@ class Agent:
             label = d.short_model or d.model or d.name
             q = Question(new_id("q_"), "confirm_device", f"Are {whose} the {label}?", [Option("yes", "Yes"), Option("no", "No")], {**st, "device": d})
         else:
-            opts = [Option(d.id, d.model or d.name, f"{d.name} · signal {'strong' if (d.rssi or -99) > -65 else 'weak'}", d) for d in cands]
+            def detail(d: Device) -> str:
+                if d.paired:
+                    return "Connected" if d.connected else "Paired with this computer"
+                return f"{d.name} · in pairing mode · signal {'strong' if (d.rssi or -99) > -65 else 'weak'}"
+
+            opts = [Option(d.id, d.alias or d.model or d.name, detail(d), d) for d in cands]
             opts.append(Option("none", "None of these"))
-            q = Question(new_id("q_"), "choose_device", f"Which are {whose}?", opts, st)
+            kind = st.get("kind") or "headphones"
+            prompt = f"Which {kind}?" if owner.is_self and all(d.paired for d in cands) else f"Which are {whose}?"
+            q = Question(new_id("q_"), "choose_device", prompt, opts, st)
         self.ctx.pending = q
         self.status("Waiting for you")
         return Reply(q.prompt, question=q, person=owner, status="Waiting for you")
@@ -301,13 +319,18 @@ class Agent:
         self.ctx.device = dev
         self.bus.publish("state", await self.state())
         if out.kind == "failed":
+            secs = f" ({out.ms / 1000:.0f} s)" if out.ms >= 1000 else ""
             if out.reason == "pair":
-                return Reply(f"I couldn't pair with {dev.label()}. Ask {owner.first if not owner.is_self else 'yourself'} to hold the power button until the light flashes, then try again.", ok=False, device=dev, status="Not connected")
-            return Reply(f"{whose.capitalize()} {dev.label()} isn't responding. Make sure they're on and nearby, then try again.", ok=False, device=dev, status="Not connected")
+                who = "Put them" if owner.is_self else f"Ask {owner.first} to put them"
+                return Reply(f"{dev.label()} didn't accept pairing{secs}. {who} back in pairing mode (hold the power button until the light flashes) and try again.",
+                             ok=False, device=dev, status="Not connected", timings={"connect_ms": out.ms})
+            return Reply(f"{whose.capitalize()} {dev.label()} didn't answer{secs}, so they're not connected. They need to be switched on (out of the case), "
+                         f"nearby, and not connected to another phone. Then try again.", ok=False, device=dev, status="Not connected", timings={"connect_ms": out.ms})
         if out.verified:
             return Reply(f"Connected to {whose} {dev.label()}. Audio is playing through them.", device=dev, person=owner, status="Audio output", timings={"connect_ms": out.ms})
         cur = await self.bt.audio_output()
-        return Reply(f"Connected to {whose} {dev.label()}, but audio is still going to {cur.name}. Pick {dev.label()} as the output in Sound settings.", device=dev, person=owner, status="Connected", ok=False, timings={"connect_ms": out.ms})
+        return Reply(f"{whose.capitalize()} {dev.label()} are connected, but Windows is still playing through {cur.name}. "
+                     f"Choose {dev.label()} from the speaker icon in the taskbar.", device=dev, person=owner, status="Connected", ok=False, timings={"connect_ms": out.ms})
 
     async def _pairing_mode(self, owner: Person, kind: Optional[str], hint: Optional[str]) -> Reply:
         kind = kind or "headphones"
@@ -534,34 +557,108 @@ class Agent:
             dest = next((d for d in person.profile.devices if d.id == device_id), None)
         return await self._start_send(hit, person, dest)
 
+    # ------------------------------------------------------------ devices from the panel
+    async def scan_nearby(self, seconds: float = 8.0) -> list[Device]:
+        """The panel's "Scan" button: devices in pairing mode near this computer."""
+        self.status("Scanning", "Looking for devices in pairing mode")
+        try:
+            self.last_scan = await self.bt.scan(seconds)
+        finally:
+            self.status("")
+        self.bus.publish("state", await self.state())
+        return self.last_scan
+
+    async def pair_device(self, device_id: str) -> Reply:
+        """Pair and connect a device found by Scan; it becomes one of yours."""
+        dev = next((d for d in self.last_scan if d.id == device_id), None)
+        if not dev:
+            return Reply("That device isn't showing up anymore. Put it back in pairing mode and scan again.", ok=False)
+        return await self._do_connect(dev, self.me)
+
+    async def disconnect_device(self, device_id: str) -> Reply:
+        dev = next((d for d in await self.bt.paired() if d.id == device_id), None)
+        if not dev:
+            return Reply("That device isn't paired with this computer.", ok=False)
+        ok = await self.bt.disconnect(dev)
+        self.bus.publish("state", await self.state())
+        return Reply(f"Disconnected {dev.label()}." if ok else f"{dev.label()} is still connected. Turn them off or disconnect in Bluetooth settings.",
+                     ok=ok, status="Disconnected" if ok else None)
+
+    def mine(self) -> dict[str, Device]:
+        return {d.id: d for d in self.shared_devices}
+
+    async def my_devices(self) -> list[dict]:
+        """Paired devices with whether you've marked them as yours (and what you call them)."""
+        marked = self.mine()
+        out = []
+        for d in await self.bt.paired():
+            m = marked.get(d.id)
+            dd = d.to_dict()
+            dd["mine"] = m is not None
+            dd["alias"] = m.alias if m else None
+            dd["label"] = (m.alias if m and m.alias else d.model or d.name)
+            out.append(dd)
+        out.sort(key=lambda d: (d["kind"] not in AUDIO_KINDS, not d["mine"], d["name"].lower()))
+        return out
+
+    async def set_mine(self, device_id: str, mine: bool, alias: Optional[str] = None) -> None:
+        """Mark a paired device as yours so contacts can ask for it by name ("Rob's headphones")."""
+        dev = next((d for d in await self.bt.paired() if d.id == device_id), None) or self.mine().get(device_id)
+        if not dev:
+            raise KeyError(device_id)
+        rest = [d for d in self.shared_devices if d.id != device_id]
+        if mine:
+            dev.alias = (alias or "").strip() or None
+            dev.connected = False  # presence is live state, not part of the record
+            rest.append(dev)
+            self.store.remember(dev, self.me.phone, self.me.name)
+        self.shared_devices = rest
+        if self.persist_shared:
+            self.persist_shared()
+        if self.publish_devices:
+            await self.publish_devices()
+        self.bus.publish("state", await self.state())
+
     # ------------------------------------------------------------ panel state
     async def state(self) -> dict:
         out = await self.bt.audio_output()
         paired = await self.bt.paired()
+        radio = await self.bt.radio_state()
         remembered = self.store.remembered()
+        paired_ids = {p.id for p in paired}
+        scanned_ids = {d.id for d in self.last_scan}
         audio: dict[str, dict] = {}
-        # Familiar devices only: remembered, paired, or registered by a contact and in range right now.
+        # Familiar devices only: paired with this computer, or a contact's registered device that a scan just saw.
         registered = {d.address: d for p in self.people.profiles.values() for d in p.devices if d.address}
         near_registered = []
         for d in self.last_scan:
             reg = registered.get(d.address)
             if reg:
                 near_registered.append(DeviceResolver._merge(Device.from_dict(reg.to_dict()), d))
-        for d in remembered + paired + near_registered:
+        marked = self.mine()
+        for d in [r for r in remembered if r.id in paired_ids or r.id in scanned_ids] + paired + near_registered:
             if d.kind not in AUDIO_KINDS:
                 continue
             cur = audio.get(d.id, {})
             dd = d.to_dict()
             dd["owner_name"] = d.owner_name or cur.get("owner_name")
-            dd["paired"] = any(p.id == d.id for p in paired)
+            dd["paired"] = d.id in paired_ids
             dd["connected"] = any(p.id == d.id and p.connected for p in paired)
-            dd["active"] = self.bt.output_matches(out, d)
+            dd["active"] = self.bt.output_matches(out, d) and (dd["connected"] or out.transport != "bluetooth")
+            dd["mine"] = d.id in marked
+            if d.id in marked and marked[d.id].alias:
+                dd["label"] = marked[d.id].alias
             audio[d.id] = {**cur, **{k: v for k, v in dd.items() if v not in (None, [], "")}}
+            audio[d.id]["connected"], audio[d.id]["paired"] = dd["connected"], dd["paired"]
+        # Things you'd pair from here: headphones, speakers, and unidentified devices (often headphones with odd names).
+        nearby = [d.to_dict() for d in self.last_scan if d.id not in paired_ids and d.id not in audio and d.kind in AUDIO_KINDS | {"other"}]
         people = [p.to_dict() for p in self.people.all_people() if p.has_app or p.nearby][:8]
         return {
             "me": {"name": self.me.name, "phone": self.me.phone},
             "audio_output": {**out.to_dict(), "device": next((d for d in audio.values() if d.get("active")), None)},
-            "audio_devices": sorted(audio.values(), key=lambda d: (not d.get("active"), not d.get("connected"), d.get("owner_name") is not None, d.get("label", ""))),
+            "audio_devices": sorted(audio.values(), key=lambda d: (not d.get("active"), not d.get("connected"), not d.get("paired"), d.get("label", ""))),
+            "nearby_devices": nearby,
+            "radio": radio,
             "people": people,
             "selected_file": self.ctx.file.to_dict() if self.ctx.file else None,
             "pending": self.ctx.pending.to_dict() if self.ctx.pending else None,
