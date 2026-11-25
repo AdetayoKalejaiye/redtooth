@@ -49,18 +49,7 @@ class ContactBook:
     # ---- loading --------------------------------------------------------
     @classmethod
     def from_json(cls, path: str | Path) -> "ContactBook":
-        data = json.loads(Path(path).read_text())
-        return cls(
-            Contact(
-                id=c.get("id") or new_id("c_"),
-                name=c["name"],
-                phones=[normalize_phone(p) for p in c.get("phones", [])],
-                nicknames=c.get("nicknames", []),
-                relation=c.get("relation"),
-                last_interaction=c.get("last_interaction"),
-            )
-            for c in data
-        )
+        return cls.from_records(json.loads(_read_text(path)))
 
     @classmethod
     def from_vcard(cls, path: str | Path) -> "ContactBook":
@@ -86,11 +75,11 @@ class ContactBook:
                 val = _unquote_printable(val)
             val = val.replace("\\,", ",").replace("\\;", ";").strip()
             if k == "BEGIN":
-                cur = {"phones": [], "nick": [], "name": "", "n": ""}
+                cur = {"phones": [], "raw": [], "nick": [], "name": "", "n": ""}
             elif k == "END" and cur is not None:
                 name = cur["name"] or cur["n"]
                 if name and cur["phones"]:
-                    book.add(Contact(new_id("c_"), name, cur["phones"], cur["nick"]))
+                    book.add(Contact(new_id("c_"), name, cur["phones"], cur["nick"], raw_phones=cur["raw"]))
                 cur = None
             elif cur is None:
                 continue
@@ -100,9 +89,11 @@ class ContactBook:
                 parts = val.split(";") + ["", ""]
                 cur["n"] = " ".join(x for x in (parts[1], parts[0]) if x)  # given, family
             elif k == "TEL":
-                num = normalize_phone(val.removeprefix("tel:"))
+                raw = val.removeprefix("tel:").strip()
+                num = normalize_phone(raw)
                 if len(num) > 4 and num not in cur["phones"]:
                     cur["phones"].append(num)
+                    cur["raw"].append(raw)
             elif k == "NICKNAME":
                 cur["nick"] += [n.strip() for n in val.split(",") if n.strip()]
         return book
@@ -121,15 +112,17 @@ class ContactBook:
                 x for x in (row.get("first name") or row.get("given name"), row.get("middle name") or row.get("additional name"),
                             row.get("last name") or row.get("family name")) if x)
             phones: list[str] = []
+            raws: list[str] = []
             for col, val in row.items():
                 if "phone" in col and "type" not in col and "label" not in col and val:
                     for part in val.split(":::"):  # Google puts several numbers in one cell
                         num = normalize_phone(part.strip())
                         if len(num) > 4 and num not in phones:
                             phones.append(num)
+                            raws.append(part.strip())
             nick = [n for n in (row.get("nickname"),) if n]
             if name and phones:
-                book.add(Contact(new_id("c_"), name, phones, nick))
+                book.add(Contact(new_id("c_"), name, phones, nick, raw_phones=raws))
         return book
 
     @classmethod
@@ -153,22 +146,25 @@ class ContactBook:
 
     @classmethod
     def from_records(cls, data: list[dict]) -> "ContactBook":
-        return cls(
-            Contact(
-                id=c.get("id") or new_id("c_"),
-                name=c["name"],
-                phones=[normalize_phone(p) for p in c.get("phones", [])],
-                nicknames=c.get("nicknames", []),
-                relation=c.get("relation"),
-                last_interaction=c.get("last_interaction"),
-            )
-            for c in data
-            if c.get("name")
-        )
+        """Records from Redtooth's store or a JSON file. Numbers as written ("phones_raw") are
+        re-read with the current country; normalized ones ("phones") are kept for anything else."""
+        out = cls()
+        for c in data:
+            if not c.get("name"):
+                continue
+            raws = [str(p) for p in c.get("phones_raw") or c.get("phones", [])]
+            phones: list[str] = []
+            for r in raws:
+                n = normalize_phone(r)
+                if len(n) > 4 and n not in phones:
+                    phones.append(n)
+            out.add(Contact(id=c.get("id") or new_id("c_"), name=c["name"], phones=phones, nicknames=c.get("nicknames", []),
+                            relation=c.get("relation"), last_interaction=c.get("last_interaction"), raw_phones=raws))
+        return out
 
     def to_records(self) -> list[dict]:
-        return [{"id": c.id, "name": c.name, "phones": c.phones, "nicknames": c.nicknames, "relation": c.relation,
-                 "last_interaction": c.last_interaction} for c in self.contacts]
+        return [{"id": c.id, "name": c.name, "phones": c.phones, "phones_raw": c.raw_phones or c.phones, "nicknames": c.nicknames,
+                 "relation": c.relation, "last_interaction": c.last_interaction} for c in self.contacts]
 
     def merge(self, other: "ContactBook") -> int:
         """Add contacts not already present; a known phone number or exact name gains the new numbers. Returns added."""
@@ -178,9 +174,11 @@ class ContactBook:
         for c in other.contacts:
             hit = next((by_phone[p] for p in c.phones if p in by_phone), None) or by_name.get(c.name.lower())
             if hit:
-                for p in c.phones:
+                for i, p in enumerate(c.phones):
                     if p not in hit.phones:
                         hit.phones.append(p)
+                        if c.raw_phones and len(c.raw_phones) == len(c.phones):
+                            hit.raw_phones = (hit.raw_phones or list(hit.phones[:-1])) + [c.raw_phones[i]]
                         by_phone[p] = hit
                 for n in c.nicknames:
                     if n not in hit.nicknames:

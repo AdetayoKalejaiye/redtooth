@@ -149,6 +149,26 @@ def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, ext
         agent.bus.publish("state", await agent.state())
         return web.json_response({"ok": True, "added": added, "count": len(agent.book.contacts)})
 
+    @r.get("/api/countries")
+    async def countries(request):
+        from .phones import COUNTRIES, flag
+
+        return web.json_response([{"iso": c.iso, "name": c.name, "cc": c.cc, "flag": flag(c.iso)} for c in sorted(COUNTRIES, key=lambda c: c.name)])
+
+    @r.post("/api/settings/country")
+    async def set_country(request):
+        if not contacts:
+            raise web.HTTPNotFound()
+        from .phones import BY_ISO
+
+        iso = str((await body(request)).get("country", "")).upper()
+        if iso not in BY_ISO:
+            return web.json_response({"ok": False, "error": "Unknown country."})
+        await asyncio.get_running_loop().run_in_executor(None, contacts.set_country, iso)
+        await agent.refresh_people()
+        agent.bus.publish("state", await agent.state())
+        return web.json_response({"ok": True, "country": iso, "count": len(agent.book.contacts)})
+
     @r.post("/api/contacts/add")
     async def contacts_add(request):
         if not contacts:
@@ -306,13 +326,28 @@ class ContactsService:
 
         self.import_book(ContactBook([Contact(new_id("c_"), name, [normalize_phone(phone)])]))
 
+    on_country = None  # callback to persist the setting
+
+    def set_country(self, iso: str) -> str:
+        """Re-read every number that was written without a country code."""
+        from .phones import set_country
+
+        iso = set_country(iso)
+        if self.on_country:
+            self.on_country(iso)
+        self.load()
+        return iso
+
     def status(self) -> dict:
         import time
 
         from .contacts import find_exports
+        from .phones import current_country, flag
 
         n = len(self.agent.book.contacts)
         if not n and time.time() - self._exports[0] > 30:
             self._exports = (time.time(), find_exports())
+        c = current_country()
         return {"count": n, "managed": True, "exports": [] if n else self._exports[1],
-                "platform": sys.platform, "with_app": sum(1 for p in self.agent.people.profiles.values())}
+                "country": {"iso": c.iso, "name": c.name, "cc": c.cc, "flag": flag(c.iso)},
+                "platform": sys.platform, "with_app": len(self.agent.people.profiles)}

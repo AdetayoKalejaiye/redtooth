@@ -141,6 +141,8 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .contacts .found{display:flex;flex-direction:column;gap:6px}
 .contacts .found .pill{text-align:left;justify-content:flex-start;display:flex;align-items:center}
 .contacts .note{font-size:12px}
+.contacts .country{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.contacts select{height:26px;border-radius:8px;border:0;background:var(--fill);padding:0 6px;font:inherit;color:inherit;max-width:100%}
 .sect .sub a,.sect .sub button{color:var(--tint);font-weight:600;font-size:12px}
 @media (max-width:760px){
   .stage{padding:0;display:block}
@@ -178,6 +180,8 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
           <a href="https://outlook.live.com/people/" target="_blank" rel="noopener" title="Manage › Export contacts">Outlook</a> ·
           Android: Contacts › Fix &amp; manage › Export to file</div>
         <form id="contactsAdd" autocomplete="off"><input type="text" name="name" placeholder="Name" aria-label="Name"><input type="tel" name="phone" placeholder="Phone number" aria-label="Phone number"><button class="pill tint" type="submit">Add</button></form>
+        <div class="country sub"><span>Numbers without a country code are read as</span>
+          <select id="countrySel" aria-label="Country for phone numbers"></select></div>
         <div class="note sub" id="contactsNote" role="status"></div>
       </div>
     </section>
@@ -342,9 +346,22 @@ function renderContacts(){
   tile.classList.toggle('hidden', !show);
   $('#contactsTile h2').textContent = C.count ? `Contacts · ${C.count}` : 'Add your contacts';
   $('#contactsClose').textContent = C.count ? 'Done' : 'Later';
+  renderCountry();
   $('#contactsFound').innerHTML = (C.exports||[]).map(x => `<button class="pill" data-import-path="${esc(x.path)}">Import ${esc(x.name)} · ${x.count} ${x.count===1?'person':'people'}</button>`).join('');
   $('#nearbySub').innerHTML = C.count ? `Drop a file on someone to send it · <button id="contactsOpen">${C.count} ${C.count===1?'contact':'contacts'}</button>` : `<button id="contactsOpen">Add contacts</button>`;
 }
+let countries = null;
+async function renderCountry(){
+  const sel = $('#countrySel'); if (!C || !C.country) return;
+  if (!countries){ countries = await api.get('/api/countries'); sel.innerHTML = countries.map(c => `<option value="${c.iso}">${c.flag} ${esc(c.name)} (+${c.cc})</option>`).join(''); }
+  sel.value = C.country.iso;
+  $('#contactsAdd [name=phone]').placeholder = `Phone (${C.country.flag} +${C.country.cc})`;
+}
+$('#countrySel').addEventListener('change', async e => {
+  contactsNote('Updating numbers…');
+  const r = await api.post('/api/settings/country',{country:e.target.value});
+  if (r.ok){ contactsNote(`Numbers re-read as ${e.target.selectedOptions[0].textContent.trim()}`); loadContacts(); refresh(); } else contactsNote(r.error, true);
+});
 function contactsNote(t, bad){ const n = $('#contactsNote'); n.textContent = t; n.style.color = bad ? 'var(--red)' : ''; }
 async function importContacts(file){
   contactsNote('Importing…');

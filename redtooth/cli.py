@@ -118,6 +118,9 @@ async def cmd_serve(args) -> None:
     cfg = load_config()
     if not cfg.get("phone"):
         sys.exit("Run `redtooth setup` first.")
+    from .phones import country_for_phone, detect_country, set_country
+
+    set_country(cfg.get("country") or country_for_phone(cfg["phone"], prefer=detect_country()) or detect_country())
     # File-menu entry points are part of the product: add them once, quietly (no admin needed).
     if not args.no_integrations and cfg.get("integrations") not in ("installed", "removed"):
         try:
@@ -149,6 +152,12 @@ async def cmd_serve(args) -> None:
     agent = Agent(me, book, directory, detect_platform(), index, store)
     agent.shared_devices = [Device.from_dict(d) for d in cfg.get("shared_devices", [])]
     contacts = ContactsService(agent, ContactStore(HOME / "contacts.json"), extra_contacts)
+
+    def save_country(iso: str) -> None:
+        cfg["country"] = iso
+        save_config(cfg)
+
+    contacts.on_country = save_country
     await asyncio.get_running_loop().run_in_executor(None, contacts.load)
     print(f"Contacts: {len(agent.book.contacts)}" + ("" if agent.book.contacts else " (add them in the panel)"), flush=True)
 
@@ -209,9 +218,29 @@ async def cmd_setup(args) -> None:
     from .directory import HTTPDirectory
     from .util import normalize_phone
 
+    from .phones import BY_ISO, country_for_phone, detect_country, flag, parse_country, set_country
+
     cfg = load_config()
     cfg["name"] = args.name or input("Your name: ").strip()
-    cfg["phone"] = normalize_phone(args.phone or input("Your phone number: ").strip())
+    guess = cfg.get("country") or detect_country()
+    country = parse_country(args.country, guess) if args.country else None
+    explicit = country is not None
+    while not country:
+        c = BY_ISO[guess]
+        answer = input(f"Country for phone numbers [{c.name} (+{c.cc}) — Enter to keep, or type a country or code]: ")
+        country = parse_country(answer, guess)
+        explicit = bool(answer.strip())
+        if not country:
+            print("  Didn't recognize that. Try a name (Germany), a code (DE) or a calling code (+49).")
+    set_country(country)
+    raw = args.phone or input(f"Your phone number ({flag(country)} +{BY_ISO[country].cc}, or include + for another country): ").strip()
+    cfg["phone"] = normalize_phone(raw)
+    # Accepted the detected region but typed a +44… number: they're more likely in the UK.
+    if not explicit and raw.strip().startswith(("+", "00")):
+        country = country_for_phone(cfg["phone"], prefer=country) or country
+    cfg["country"] = country
+    set_country(country)
+    print(f"Phone: {cfg['phone']} · numbers without a country code will be read as {BY_ISO[country].name} (+{BY_ISO[country].cc})")
     cfg["directory"] = args.directory
     d = HTTPDirectory(args.directory)
     await d.start_verification(cfg["phone"])
@@ -246,6 +275,9 @@ def _import_contacts_cli(path: str) -> None:
 
 def cmd_contacts(args) -> None:
     from .contacts import ContactStore
+    from .phones import detect_country, set_country
+
+    set_country(load_config().get("country") or detect_country())
 
     if args.action == "import":
         for f in args.files:
@@ -358,6 +390,7 @@ def main(argv=None) -> None:
     p.add_argument("--phone")
     p.add_argument("--code")
     p.add_argument("--contacts", help="optional: a contacts export (.vcf, .csv or .json) to import")
+    p.add_argument("--country", help="country for numbers without a country code (US, GB, +44, Germany…); default: this computer's region")
     p.add_argument("--directory", default=os.environ.get("REDTOOTH_DIRECTORY", "http://127.0.0.1:8790"))
     p = sub.add_parser("contacts", help="import, add or list contacts (the panel does the same)")
     p.add_argument("action", choices=["import", "add", "list"])
