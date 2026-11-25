@@ -157,6 +157,7 @@ def print_report(title: str, summ: dict, results: list[dict], show_misses: bool 
 
 def run(argv=None) -> dict:
     ap = argparse.ArgumentParser(prog="redtooth eval", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--rerank", action="store_true", help="also re-rank with the cross-encoder (once downloaded)")
     ap.add_argument("--embedder", default=None, choices=["auto", "e5", "hash"])
     ap.add_argument("--queries", help="your own queries JSON (default: bundled set)")
     ap.add_argument("--root", help="folder to index instead of the bundled corpus")
@@ -176,6 +177,15 @@ def run(argv=None) -> dict:
     queries = load_queries(a.queries)
     t = time.time()
     ix = FileIndex(work / "eval.db", emb)
+    if a.rerank:
+        from ..files.rerank import CrossEncoder, RerankerHolder, ready
+
+        if ready():
+            ix.reranker = RerankerHolder()
+            ix.reranker.model = CrossEncoder()
+            print(f"Re-ranking with {CrossEncoder.name}")
+        else:
+            print("Re-ranker not downloaded yet (start Redtooth once); scoring without it")
     ix.scan([root])
     print(f"Indexed {root} with {emb.name} in {time.time() - t:.1f}s · {len(queries)} queries")
     results = evaluate(ix, queries)

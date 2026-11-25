@@ -47,6 +47,11 @@ redtooth/
 
 **Finding files.** Every file gets a filename chunk plus content chunks ("Slide 2", "Page 3"). FTS5 with bm25 (filename weighted 10×) handles exact names and project codes like `PRJ-2041`. multilingual-E5 embeddings (`query:` / `passage:` prefixes) handle topics phrased differently. The two rankings are merged with reciprocal-rank fusion. Type and time filters apply inside both searches, so a filtered match can't be crowded out by unfiltered ones. Redtooth asks when the second result is close to the first, or when type and time alone leave more than one candidate.
 
+**Telling files apart.** Three things handle ambiguity on top of the keyword + meaning search:
+- *Usage:* files Windows lists as recently opened (the Recent Items shortcuts; `recently-used.xbel` on Linux), files you sent or picked in Redtooth, and which file you picked for a request before ("term paper" → `HIST 201 Term Paper.docx`), all fading with a two-week half-life.
+- *Re-ranking:* a multilingual cross-encoder (`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`, 8-bit ONNX, ~120 MB, downloaded in the background on first start) reads the request with each of the top 20 candidates and scores how well they match. Until it's downloaded, search works as before. `redtooth eval --rerank` scores it on the test set.
+- *Questions:* Redtooth asks only when the re-ranker is unsure (top two close, or nothing clearly relevant), and the question names what differs: "the final (edited Nov 23) or the draft (Oct 6)?", "the Word doc or the PDF?", "the one in Work or the one in Downloads?". Your answer is remembered for that request.
+
 **Indexing a whole device** (`files/indexer.py`). `redtooth serve` indexes in a background thread:
 - **Scope:** your folders (Documents, Desktop and Downloads by default), skipping system, build and cache folders and file types it can't search. It lists directories with `os.scandir`, and finds changed files with one bulk comparison, not a lookup per file.
 - **Order:** files edited in the last 14 days are indexed first, newest first, and become searchable before the older backlog starts. Measured on a 20,000-file library: recent files were searchable after 0.2 s, and the full first run took 92 s with the fallback embedder (226 s before this rework).

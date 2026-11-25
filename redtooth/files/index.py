@@ -12,6 +12,7 @@ rebuild, which takes seconds.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sqlite3
@@ -44,6 +45,7 @@ VEC_K = 300  # nearest chunks to consider per query
 VEC_SCHEMA = "3"  # bump when the vector table layout changes
 REBUILD_DELTA = 0.02  # rebuild the speed-up index when >2% of rows changed since the last build
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".Trash", "Library", "AppData", ".cache", ".venv", "venv", ".redtooth"}
+log = logging.getLogger("redtooth.index")
 RRF_K = 60
 
 
@@ -137,6 +139,8 @@ class FileIndex:
         }
         self.params.update(load_calibration(self.embedder.name))
         self._qcache: dict[str, np.ndarray] = {}
+        self.usage = None  # files.usage.Usage: recently opened / sent / picked
+        self.reranker = None  # files.rerank.RerankerHolder: cross-encoder for the top candidates
         # Speed-up index: derived from the database, kept next to it.
         self.vec_dir = Path(tempfile.mkdtemp(prefix="redtooth-vec-")) if self.db_path == ":memory:" else Path(self.db_path).with_suffix(".vec")
         self.delta: dict[int, tuple[np.ndarray, int, str, float]] = {}  # chunk_id -> (vector, file_id, ext, mtime)
@@ -543,7 +547,17 @@ class FileIndex:
             # Newer files win ties: a small prior that halves every ~6 weeks (never outweighs a better match).
             age_days = max(0.0, (time.time() - cand[fid].mtime) / 86400)
             scores[fid] += P.get("w_recent", 0.006) * 0.5 ** (age_days / 42)
-        ranked = sorted(scores.items(), key=lambda x: (-x[1], -cand[x[0]].mtime))[:limit]
+        # What you actually use: recently opened, sent, picked for this same request before.
+        sig = self.usage.signals([cand[f].path for f in scores], text) if self.usage and scores else {}
+        for fid in scores:
+            u, pick, why = sig.get(cand[fid].path, (0.0, 0.0, []))
+            scores[fid] += 0.02 * u + 0.05 * pick
+            cand[fid].reasons = why
+        ranked = sorted(scores.items(), key=lambda x: (-x[1], -cand[x[0]].mtime))
+        model = self.reranker.get() if self.reranker else None
+        if model is not None and len(ranked) > 1:
+            ranked = self._rerank(model, text, ranked[:20], cand, kw_chunk, sem_chunk, sig)
+        ranked = ranked[:limit]
         top = ranked[0][1] if ranked else 1.0
         ranked = [(fid, s) for fid, s in ranked if s / top >= P["rel_cut"]]
         out = []
@@ -558,6 +572,32 @@ class FileIndex:
             h.snippet_label = "" if lbl == "File name" else (lbl or "")
             h.snippet = self._snip(txt or "", text)
             out.append(h)
+        return out
+
+    def _rerank(self, model, text, ranked, cand, kw_chunk, sem_chunk, sig) -> list[tuple[int, float]]:
+        """Cross-encoder over the top candidates: it reads the request and each file's name and best passage
+        together. Its score leads; the earlier ranking, usage and recency adjust it."""
+        passages = []
+        for fid, _ in ranked:
+            lbl, txt = kw_chunk.get(fid) or self._chunk(sem_chunk.get(fid))
+            name = name_words(cand[fid].name)
+            body = re.sub(r"\s+", " ", txt or "")[:600]
+            passages.append(f"{name} ({cand[fid].ext.lstrip('.')}). {lbl + ': ' if lbl and lbl != 'File name' else ''}{body}")
+        try:
+            p = model.score(text, passages)
+        except Exception as e:
+            log.warning("re-ranking failed: %s", e)
+            return ranked
+        top_fused = max(s for _, s in ranked) or 1.0
+        out = []
+        now = time.time()
+        for (fid, fused), prob in zip(ranked, p):
+            u, pick, _ = sig.get(cand[fid].path, (0.0, 0.0, []))
+            age = max(0.0, (now - cand[fid].mtime) / 86400)
+            final = 0.70 * float(prob) + 0.20 * (fused / top_fused) + 0.15 * u + 0.30 * pick + 0.03 * 0.5 ** (age / 42)
+            cand[fid].confidence = round(float(prob), 3)
+            out.append((fid, final))
+        out.sort(key=lambda x: (-x[1], -cand[x[0]].mtime))
         return out
 
     @staticmethod
