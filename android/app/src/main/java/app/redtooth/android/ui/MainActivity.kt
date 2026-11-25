@@ -176,7 +176,7 @@ private fun AudioCard(s: PanelState, vm: PanelViewModel, openSettings: () -> Uni
                 Icon(Icons.Default.Headphones, null, Modifier.size(20.dp)); Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Your devices", fontWeight = FontWeight.SemiBold)
-                    Text("${if (mineCount > 0) "$mineCount marked as yours" else "Mark which are yours"} · ${s.paired.size} paired with this phone",
+                    Text(if (mineCount > 0) "$mineCount of your own · headphones, speakers, phone" else "Only things you own: your headphones, speakers, phone",
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Icon(Icons.Default.ChevronRight, null)
@@ -245,7 +245,9 @@ private fun DevicesSheet(s: PanelState, vm: PanelViewModel) {
             }
             item {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                Text("Paired with this phone", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Everything else this phone has paired with", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Android remembers every device it has ever paired with, including old and borrowed ones. None of it is shared. If one is yours, tap “This is mine”.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(s.paired.filter { it.id !in s.sharedIds }) { d ->
                 DeviceRow(d, s, subtitle = kindLabel(d.kind) + if (d.connected) " · Connected" else " · Not connected") {
