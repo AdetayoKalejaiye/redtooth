@@ -337,8 +337,12 @@ class Agent:
                              ok=False, device=dev, status="Not connected", timings={"connect_ms": out.ms})
             return Reply(f"{whose.capitalize()} {dev.label()} didn't answer{secs}, so they're not connected. They need to be switched on (out of the case), "
                          f"nearby, and not connected to another phone. Then try again.", ok=False, device=dev, status="Not connected", timings={"connect_ms": out.ms})
-        if out.verified:
-            return Reply(f"Connected to {whose} {drop_owner(dev.label(), owner.first)}. Audio is playing through them.", device=dev, person=owner, status="Audio output", timings={"connect_ms": out.ms})
+        name = drop_owner(dev.label(), owner.first)
+        if out.verified:  # only after reading the system's actual output and matching it to this device
+            return Reply(f"Connected to {whose} {name}. Audio is playing through them.", device=dev, person=owner, status="Audio output", timings={"connect_ms": out.ms})
+        if out.verified is None:
+            return Reply(f"Connected to {whose} {name}. I can't read which output Windows is using, so I can't confirm audio goes there; "
+                         f"check the speaker icon in the taskbar.", device=dev, person=owner, status="Connected", ok=False, timings={"connect_ms": out.ms})
         cur = await self.bt.audio_output()
         return Reply(f"{whose.capitalize()} {dev.label()} are connected, but Windows is still playing through {cur.name}. "
                      f"Choose {dev.label()} from the speaker icon in the taskbar.", device=dev, person=owner, status="Connected", ok=False, timings={"connect_ms": out.ms})

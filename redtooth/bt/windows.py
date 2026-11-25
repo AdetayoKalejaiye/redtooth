@@ -659,7 +659,7 @@ class WindowsBluetooth(BluetoothPlatform):
             pass
         except Exception as e:
             _warn_once("reading the audio output (WinRT)", e)
-        return AudioOutput("Speakers")
+        return AudioOutput("an output Redtooth can't read", None, "other", known=False)
 
     async def set_audio_output(self, dev: Device) -> bool:
         def switch() -> bool:
@@ -682,11 +682,6 @@ class WindowsBluetooth(BluetoothPlatform):
         from ..transfer.obex import send_file
 
         send_file(address, path, progress, cancel)
-
-    def output_matches(self, out: AudioOutput, dev: Device) -> bool:
-        if out.address and dev.address:
-            return norm_addr(out.address) == norm_addr(dev.address)
-        return super().output_matches(out, dev)
 
     # ------------------------------------------------------------- diagnostics
     async def diagnose(self) -> dict:

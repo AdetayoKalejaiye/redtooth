@@ -55,7 +55,7 @@ class Outcome:
     kind: str  # known | confirm | choose | pairing_mode | connected | failed
     device: Optional[Device] = None
     candidates: list[Device] = field(default_factory=list)
-    verified: bool = False
+    verified: Optional[bool] = False  # None: the audio output couldn't be read, so nothing is claimed
     reason: str = ""
     survey: Optional[Survey] = None
     ms: float = 0.0
