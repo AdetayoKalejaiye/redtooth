@@ -87,6 +87,11 @@ def default_roots() -> list[Path]:
     return [p for p in (home / "Documents", home / "Desktop", home / "Downloads") if p.exists()]
 
 
+def _safe(t) -> str:
+    t = t if isinstance(t, str) else ("" if t is None else str(t))
+    return t.encode("utf-8", "replace").decode("utf-8")
+
+
 class FileIndex:
     def __init__(self, db_path: str | Path = ":memory:", embedder: Optional[Embedder] = None):
         self.embedder = embedder or HashEmbedder()
@@ -173,11 +178,12 @@ class FileIndex:
                 self._delete(row[0])
             cur = self.db.execute(
                 "INSERT INTO files(path,name,ext,kind,size,mtime,sig,indexed_at) VALUES(?,?,?,?,?,?,?,?)",
-                (str(p), name, ext, kind_of(p), size, mtime, sig, time.time()),
+                (str(p), _safe(name), ext, kind_of(p), size, mtime, sig, time.time()),
             )
             fid = cur.lastrowid
-            nw = name_words(name)
+            nw = _safe(name_words(name))
             for i, (lbl, txt) in enumerate([("File name", "")] + chunks):
+                lbl, txt = _safe(lbl), _safe(txt)  # PDFs and old documents can contain lone surrogates SQLite won't store
                 cid = self.db.execute("INSERT INTO chunks(file_id,label,text) VALUES(?,?,?)", (fid, lbl, txt)).lastrowid
                 self.db.execute("INSERT INTO fts(rowid,name,label,text) VALUES(?,?,?,?)", (cid, nw, lbl, txt))
                 blob = vecs[i].tobytes()

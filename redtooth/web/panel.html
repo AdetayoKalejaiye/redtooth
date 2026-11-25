@@ -147,6 +147,11 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .devrow:first-child{border-top:0}
 .devrow .nm{font-weight:500}
 .state{display:inline-flex;align-items:center;gap:5px}
+.linkrow{display:flex;align-items:center;gap:10px;width:100%;padding:9px 0 2px;border-top:.5px solid var(--sep);margin-top:6px;text-align:left}
+.linkrow .grow b{font-weight:600;display:block}
+.linkrow .chev{color:var(--label3);font-size:18px;line-height:1}
+.linkrow:hover .grow b{color:var(--tint)}
+.mine .acts{display:flex;gap:6px;align-items:center}
 .scanbar{display:flex;align-items:center;gap:8px;margin-top:8px}
 .hint{font-size:11.5px;color:var(--label2);line-height:1.4}
 .spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--fill2);border-top-color:var(--tint);animation:spin .8s linear infinite;flex:none}
@@ -353,21 +358,20 @@ function renderAudio(){
   sb.classList.toggle('hidden', !S.setup_issue);
   if (S.setup_issue){ const [msg, cmd] = S.setup_issue.split(' Run: '); sb.innerHTML = `<div class="grow">${esc(msg)}<br>Run this in PowerShell, then restart Redtooth:<br><code style="user-select:all;font-size:11px;word-break:break-all">${esc(cmd||'')}</code></div>`; }
   rb.textContent = radio === 'missing' ? 'This computer has no Bluetooth adapter Redtooth can use.' : 'Bluetooth is off. Turn it on in Quick Settings (Win + A) to connect headphones.';
-  // Your audio devices: the true state from Windows, one action each.
+  // Only what's connected right now; everything else lives in Settings › Your devices.
   const list = $('#audioList');
-  const devs = S.audio_devices.filter(d => !d.active && d.paired).slice(0, 6);
+  const devs = S.audio_devices.filter(d => !d.active && d.connected && d.paired).slice(0, 4);
   list.innerHTML = devs.map(d => {
     const who = borrowed(d) ? borrowed(d) + '’s · ' : '';
-    const state = d.connected ? '<i class="dot green"></i>Connected' : '<i class="dot"></i>Not connected';
-    const action = d.connected ? `<button class="pill" data-connect="${esc(d.id)}" title="Play audio through ${esc(d.label)}">Use</button><button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button>`
-                               : `<button class="pill" data-connect="${esc(d.id)}">Connect</button>`;
     return `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
-      <div class="grow"><div class="ellipsis nm">${esc(d.label)}</div><div class="sub state">${esc(who)}${state}</div></div>${action}</div>`;
+      <div class="grow"><div class="ellipsis nm">${esc(d.label)}</div><div class="sub state">${esc(who)}<i class="dot green"></i>Connected</div></div>
+      <button class="pill" data-connect="${esc(d.id)}" title="Play audio through ${esc(d.label)}">Use</button><button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button></div>`;
   }).join('');
-  const others = (S.other_devices || []).slice(0, 6);
-  list.innerHTML += others.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
-      <div class="grow"><div class="ellipsis nm">${esc(d.label)}</div><div class="sub state">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.connected ? '<i class="dot green"></i>Connected' : 'Paired'}</div></div></div>`).join('');
-  list.classList.toggle('hidden', !devs.length && !others.length);
+  const nPaired = S.audio_devices.filter(d => d.paired).length + (S.other_devices || []).length;
+  const nMine = S.audio_devices.filter(d => d.mine).length + (S.other_devices || []).filter(d => d.mine).length;
+  list.innerHTML += `<button class="linkrow" data-goto="devices"><div class="icon sm">${I.headphones}</div>
+      <div class="grow"><b>Your devices</b><span class="sub">${nPaired ? `${nPaired} paired · ${nMine ? nMine + ' marked as yours' : 'mark which are yours'} · connect` : 'Nothing paired yet'}</span></div><span class="chev">›</span></button>`;
+  list.classList.remove('hidden');
   renderNearby();
 }
 
@@ -377,7 +381,7 @@ function renderNearby(){
   const found = (S.nearby_devices || []);
   btn.disabled = scanning || S.radio === 'off' || S.radio === 'missing';
   btn.textContent = scanning ? 'Scanning…' : found.length ? 'Scan again' : 'Add a device';
-  hint.innerHTML = scanning ? '<span class="state"><span class="spin"></span>Looking for devices (about 10 s). Headphones: put them in pairing mode. Phones: open their Bluetooth settings.</span>'
+  hint.innerHTML = scanning ? '<span class="state"><span class="spin"></span>Looking (about 10 s). Headphones: pairing mode. Android: Settings › Connected devices › Pair new device. iPhone: Settings › Bluetooth. Keep that screen open.</span>'
     : found.length ? `${found.length} found nearby` : 'Pair headphones, speakers, phones…';
   el.innerHTML = found.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
       <div class="grow"><div class="ellipsis nm">${esc(d.name)}</div><div class="sub">${esc(KIND_LABEL[d.kind] || 'Device')}${d.rssi != null ? ' · ' + ((d.rssi > -65) ? 'close by' : 'in range') : ''}</div></div>
@@ -464,11 +468,14 @@ async function loadMyDevices(){
   const el = $('#myDevices');
   const devs = r.devices;
   if (!devs.length){ el.innerHTML = '<div class="note">Nothing is paired with this computer yet. Use “Add a device” on the main screen first.</div>'; return; }
+  const audio = ['headphones','earbuds','speaker'];
   el.innerHTML = devs.map(d => `<div class="mine" data-dev="${esc(d.id)}">
       <div class="head"><div class="icon sm">${kindIcon(d.kind)}</div>
-        <div class="grow"><div class="ellipsis nm">${esc(d.model || d.name)}</div><div class="sub">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.mine ? 'yours, contacts can ask for it' : 'not marked'}</div></div>
-        <button class="sw ${d.mine?'on':''}" data-mine="${esc(d.id)}" aria-label="These are mine"></button></div>
-      <div class="alias ${d.mine?'':'hidden'}"><input class="input" data-alias="${esc(d.id)}" placeholder="${esc(r.me)}’s ${esc((KIND_LABEL[d.kind] || 'device').toLowerCase())}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button></div>
+        <div class="grow"><div class="ellipsis nm">${esc(d.label || d.model || d.name)}</div>
+          <div class="sub state">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.connected ? '<i class="dot green"></i>Connected' : 'Not connected'}${d.mine ? ' · <b style="color:var(--tint)">yours</b>' : ''}</div></div>
+        <div class="acts">${audio.includes(d.kind) ? (d.connected ? `<button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button>` : `<button class="pill" data-connect="${esc(d.id)}">Connect</button>`) : ''}</div></div>
+      <div class="toggle" style="padding:2px 0 0 38px;border:0"><span class="sub">This is mine</span><button class="sw ${d.mine?'on':''}" data-mine="${esc(d.id)}" aria-label="This is mine"></button></div>
+      <div class="alias ${d.mine?'':'hidden'}"><input class="input" data-alias="${esc(d.id)}" placeholder="What friends call it, e.g. ${esc(r.me)}’s ${esc((KIND_LABEL[d.kind] || 'device').toLowerCase())}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button></div>
     </div>`).join('');
 }
 async function setMine(id, mine, alias){
@@ -604,9 +611,9 @@ async function refresh(){ S = await api.get('/api/state'); (S.transfers||[]).for
 document.addEventListener('click', async e => {
   const b = e.target.closest('button,[data-file]'); if (!b) return;
   if (b.dataset.q){ b.closest('.opts').querySelectorAll('button').forEach(x=>x.disabled=true); userMsg(b.querySelector('b').textContent); const r = await api.post('/api/answer',{question_id:b.dataset.q, option_id:b.dataset.o}); replyMsg(r); refresh(); }
-  else if (b.dataset.connect){ b.disabled = true; b.textContent='Connecting'; const r = await api.post('/api/connect',{device_id:b.dataset.connect}); replyMsg(r); refresh(); }
+  else if (b.dataset.connect){ b.disabled = true; b.textContent='Connecting'; const r = await api.post('/api/connect',{device_id:b.dataset.connect}); replyMsg(r); refresh(); if (!$('#settings').classList.contains('hidden')){ loadMyDevices(); if (!r.ok) alert(r.text); } }
   else if (b.dataset.person){ const r = await api.post('/api/send',{person_id:b.dataset.person}); replyMsg(r); refresh(); }
-  else if (b.dataset.disconnect){ b.disabled = true; b.textContent='Disconnecting'; const r = await api.post('/api/disconnect',{device_id:b.dataset.disconnect}); replyMsg(r); refresh(); }
+  else if (b.dataset.disconnect){ b.disabled = true; b.textContent='Disconnecting'; const r = await api.post('/api/disconnect',{device_id:b.dataset.disconnect}); replyMsg(r); refresh(); if (!$('#settings').classList.contains('hidden')) loadMyDevices(); }
   else if (b.dataset.pair){ b.disabled = true; b.textContent='Pairing'; const r = await api.post('/api/pair',{device_id:b.dataset.pair}); replyMsg(r); refresh(); }
   else if (b.id === 'scanBtn'){ scan(); }
   else if (b.dataset.goto){ showView('settings', b.dataset.goto); }
