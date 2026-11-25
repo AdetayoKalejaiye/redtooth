@@ -309,7 +309,7 @@ class Tray:
             item(lambda _: self.status, None, enabled=False),
             pystray.Menu.SEPARATOR,
             item("Pair new device…", lambda: open_panel(self.url, self.home, "scan")),
-            item("Bluetooth devices…", lambda: open_panel(self.url, self.home, "settings-devices")),
+            item("Your devices…", lambda: open_panel(self.url, self.home, "settings-devices")),
             item("Contacts…", lambda: open_panel(self.url, self.home, "settings-contacts")),
             pystray.Menu.SEPARATOR,
             item("Start when I sign in", lambda: set_autostart(not autostart_enabled()), checked=lambda _: autostart_enabled(),
