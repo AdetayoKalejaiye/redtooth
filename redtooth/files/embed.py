@@ -50,15 +50,15 @@ def _print_progress(name: str, done: int, total: int) -> None:
     sys.stderr.flush()
 
 
-def fetch_model(dest: Path = MODEL_DIR, progress: Optional[Callable[[str, int, int], None]] = _print_progress,
-                timeout: float = 30) -> Path:
-    """Download the model files that are missing. Partial downloads never count as present."""
+def download_files(base: str, files: dict[str, str], dest: Path, progress: Optional[Callable[[str, int, int], None]] = _print_progress,
+                   timeout: float = 30) -> Path:
+    """Download the files that are missing. Partial downloads never count as present."""
     dest.mkdir(parents=True, exist_ok=True)
-    for local, remote in MODEL_FILES.items():
+    for local, remote in files.items():
         target = dest / local
         if target.exists() and target.stat().st_size > 0:
             continue
-        url = f"{HF_BASE}/{remote}"
+        url = f"{base}/{remote}"
         log.info("Downloading %s", url)
         tmp = target.with_suffix(target.suffix + ".part")
         with urllib.request.urlopen(url, timeout=timeout) as r, open(tmp, "wb") as f:
@@ -73,6 +73,11 @@ def fetch_model(dest: Path = MODEL_DIR, progress: Optional[Callable[[str, int, i
             raise IOError(f"{local}: got {done} of {total} bytes")
         os.replace(tmp, target)
     return dest
+
+
+def fetch_model(dest: Path = MODEL_DIR, progress: Optional[Callable[[str, int, int], None]] = _print_progress,
+                timeout: float = 30) -> Path:
+    return download_files(HF_BASE, MODEL_FILES, dest, progress, timeout)
 
 
 def _clean(t) -> str:

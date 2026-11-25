@@ -280,6 +280,7 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
         <div class="toggle" style="border-top:0"><span>Start when I sign in</span><button class="sw" id="autostartSw" aria-label="Start when I sign in"></button></div>
         <div class="toggle"><span>Bluetooth check</span><button class="pill" id="doctorBtn">Run</button></div>
         <pre class="note" id="doctorOut" style="white-space:pre-wrap;font:11px ui-monospace,Consolas,monospace;max-height:220px;overflow:auto" hidden></pre>
+        <p id="searchInfo" class="hidden"></p>
         <p id="directoryInfo"></p>
       </section>
     </div>
@@ -543,6 +544,11 @@ async function loadApp(){
     const a = await api.get('/api/app');
     $('#autostartSw').classList.toggle('on', !!a.autostart);
     $('#autostartSw').parentElement.classList.toggle('hidden', !a.autostart_supported);
+    if (a.search){
+      const rr = a.search.reranker === 'ready' ? 're-ranker ready' : a.search.reranker === 'downloading' ? 're-ranker downloading (~120 MB, first run only)' : 're-ranker unavailable: ' + a.search.reranker;
+      $('#searchInfo').textContent = `Search: ${a.search.embedder} · ${rr} · learns from what you open, send and pick`;
+      $('#searchInfo').classList.remove('hidden');
+    }
     $('#directoryInfo').classList.toggle('hidden', !a.directory_url);
     $('#directoryInfo').innerHTML = a.directory_hosted
       ? `This computer hosts your group’s directory at <b>${esc(a.directory_url)}</b>. On another device, run setup with that address.`
