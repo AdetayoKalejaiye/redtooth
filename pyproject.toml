@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redtooth"
+version = "0.1.0"
+description = "Agentic Bluetooth: connect to the devices people mean, find and send files fast."
+requires-python = ">=3.11"
+dependencies = [
+  "aiohttp>=3.9",
+  "numpy>=1.26",
+  "onnxruntime>=1.17",
+  "tokenizers>=0.15",
+  "python-pptx>=0.6.23",
+  "python-docx>=1.1",
+  "pypdf>=4.0",
+  "sqlite-vec>=0.1.6",
+  "reportlab>=4.0",
+  "watchdog>=4.0",
+  "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+windows = ["winrt-runtime", "winrt-Windows.Devices.Enumeration", "winrt-Windows.Devices.Bluetooth", "winrt-Windows.Devices.WiFiDirect", "win11toast"]
+phone = ["phonenumbers"]
+tray = ["pystray", "pillow"]
+dev = ["pytest", "pytest-asyncio"]
+
+[project.scripts]
+redtooth = "redtooth.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["redtooth*"]
+
+[tool.setuptools.package-data]
+redtooth = ["web/*", "search_eval/*.json"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Redtooth</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%23e0322b%27/%3E%3Cpath d=%27M11 10l10 8-5 4V8l5 4-10 8%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.4%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<style>
+:root{
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
+  --label:#1d1d1f; --label2:rgba(60,60,67,.62); --label3:rgba(60,60,67,.38);
+  --sep:rgba(60,60,67,.16); --fill:rgba(118,118,128,.12); --fill2:rgba(118,118,128,.20);
+  --glass:rgba(250,250,252,.66); --glass-strong:rgba(255,255,255,.78); --glass-edge:rgba(255,255,255,.7);
+  --tint:#007AFF; --tint-soft:rgba(0,122,255,.12); --green:#34C759; --orange:#FF9500; --red:#FF3B30;
+  --shadow:0 30px 80px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.06);
+  --wall: radial-gradient(1200px 800px at 12% 8%, #ffd5c2 0%, transparent 55%), radial-gradient(900px 700px at 90% 20%, #b9d7ff 0%, transparent 60%), radial-gradient(900px 900px at 60% 100%, #d9c8ff 0%, transparent 55%), #eef0f5;
+}
+@media (prefers-color-scheme: dark){:root{
+  --label:#f5f5f7; --label2:rgba(235,235,245,.62); --label3:rgba(235,235,245,.32);
+  --sep:rgba(84,84,88,.5); --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.32);
+  --glass:rgba(38,38,42,.58); --glass-strong:rgba(48,48,52,.78); --glass-edge:rgba(255,255,255,.12);
+  --tint:#0A84FF; --tint-soft:rgba(10,132,255,.2); --green:#30D158; --orange:#FF9F0A; --red:#FF453A;
+  --shadow:0 30px 80px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.3);
+  --wall: radial-gradient(1200px 800px at 12% 8%, #5a2c3c 0%, transparent 55%), radial-gradient(900px 700px at 90% 20%, #1d3b6b 0%, transparent 60%), radial-gradient(900px 900px at 60% 100%, #35275e 0%, transparent 55%), #0c0d12;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font);color:var(--label);background:var(--wall);background-attachment:fixed;-webkit-font-smoothing:antialiased;font-size:13px;line-height:1.35;letter-spacing:-.005em}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var(--tint) 55%,transparent);outline-offset:2px}
+.stage{min-height:100%;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:48px 20px 40px}
+.glass{background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:.5px solid var(--glass-edge);box-shadow:var(--shadow)}
+.panel{width:380px;max-width:100%;border-radius:26px;padding:12px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 88px)}
+.tile{background:var(--glass-strong);border-radius:18px;padding:12px 14px}
+.row{display:flex;align-items:center;gap:10px;min-width:0}
+.grow{flex:1;min-width:0}
+.ellipsis{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cap{font-size:11px;font-weight:600;color:var(--label2);letter-spacing:.01em}
+.sect{display:flex;justify-content:space-between;align-items:baseline;padding:2px 6px 4px}
+.sect h2{font-size:13px;font-weight:600}
+.sub{font-size:12px;color:var(--label2)}
+.icon{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--fill);flex:none}
+.icon svg{width:18px;height:18px}
+.icon.on{background:var(--tint);color:#fff}
+.icon.sm{width:28px;height:28px}.icon.sm svg{width:15px;height:15px}
+.audio-name{font-size:15px;font-weight:600}
+.status{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--label2)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--label3)}
+.dot.green{background:var(--green)}.dot.orange{background:var(--orange);animation:pulse 1.2s infinite}.dot.blue{background:var(--tint);animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.pill{height:28px;padding:0 12px;border-radius:14px;background:var(--fill);font-size:12px;font-weight:600;white-space:nowrap;transition:background .15s, transform .1s}
+.pill:hover{background:var(--fill2)}.pill:active{transform:scale(.97)}
+.pill.tint{background:var(--tint);color:#fff}.pill.tint:hover{filter:brightness(1.08)}
+.pill.ghost{background:transparent;color:var(--tint)}
+.pill[disabled]{opacity:.45;pointer-events:none}
+.list{display:flex;flex-direction:column}
+.list .item{padding:8px 0;border-top:.5px solid var(--sep)}
+.list .item:first-child{border-top:0;padding-top:2px}
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px}
+.person{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px 6px;border-radius:14px;transition:background .15s;position:relative}
+.person:hover{background:var(--fill)}
+.person.drop{background:var(--tint-soft);outline:2px dashed var(--tint)}
+.avatar{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:16px;color:#fff;background:linear-gradient(180deg,#a1a1aa,#71717a)}
+.person .nm{font-size:12px;font-weight:500;max-width:76px}
+.person .meta{font-size:10.5px;color:var(--label2)}
+.person .near{position:absolute;top:8px;right:calc(50% - 26px);width:12px;height:12px;border-radius:50%;background:var(--green);border:2px solid var(--glass-strong)}
+.person .send{font-size:11px;color:var(--tint);font-weight:600}
+.feed{display:flex;flex-direction:column;gap:8px;flex:none;padding:0 2px}
+.feed:empty{display:none}
+.msg-user{align-self:flex-end;background:var(--tint);color:#fff;padding:7px 12px;border-radius:16px 16px 4px 16px;max-width:85%;font-size:13px}
+.msg{background:var(--glass-strong);border-radius:16px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.msg .txt{font-size:13px}
+.msg.err .txt{color:var(--label)}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opt{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:8px 12px;border-radius:12px;background:var(--fill);min-width:0;transition:background .15s}
+.opt:hover{background:var(--tint-soft)}
+.opt b{font-weight:600;font-size:13px}.opt span{font-size:11.5px;color:var(--label2)}
+.opt.yes{background:var(--tint);color:#fff}.opt.yes span{color:rgba(255,255,255,.8)}
+.opts.wide .opt{flex:1 1 100%}
+.file{display:flex;gap:10px;align-items:center;padding:6px;border-radius:12px;cursor:pointer}
+.file:hover{background:var(--fill)}
+.ficon{width:30px;height:36px;border-radius:6px;display:grid;place-items:center;color:#fff;font-size:9px;font-weight:700;flex:none;background:#8e8e93;letter-spacing:.02em}
+.ficon.presentation{background:linear-gradient(180deg,#ff9f45,#f26b1d)}.ficon.document{background:linear-gradient(180deg,#4f9bff,#2563eb)}.ficon.spreadsheet{background:linear-gradient(180deg,#43c96b,#16a34a)}.ficon.pdf{background:linear-gradient(180deg,#ff6b6b,#dc2626)}.ficon.video{background:linear-gradient(180deg,#b085ff,#7c3aed)}
+.why{font-size:10.5px;color:var(--tint);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.snip{font-size:11.5px;color:var(--label2)}
+.xfer .bar{height:5px;border-radius:3px;background:var(--fill2);overflow:hidden}
+.xfer .bar i{display:block;height:100%;background:var(--tint);border-radius:3px;transition:width .15s linear}
+.xfer.saved .bar i{background:var(--green)}
+.xfer.declined .bar i,.xfer.failed .bar i{background:var(--red)}
+.timings{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--label2);font-variant-numeric:tabular-nums}
+.timings b{color:var(--label);font-weight:600}
+.selected{display:flex;align-items:center;gap:10px}
+.ask{display:flex;align-items:center;gap:6px;background:var(--glass-strong);border-radius:14px;padding:4px 4px 4px 12px}
+.ask input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-size:14px;color:var(--label);height:34px;outline:none}
+.ask input::placeholder{color:var(--label3)}
+.ask .go{width:30px;height:30px;border-radius:50%;background:var(--tint);color:#fff;display:grid;place-items:center}
+.ask .mic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--label2)}
+.ask .mic.live{color:var(--red)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:0 2px 2px;scrollbar-width:none}
+.chip{flex:none;height:26px;padding:0 10px;border-radius:13px;background:var(--fill);font-size:11.5px;color:var(--label2);white-space:nowrap}
+.chip:hover{color:var(--label);background:var(--fill2)}
+.scroll{flex:1 1 auto;overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:120px}
+.panel>.tile,.panel>.chips,.panel>.ask{flex:none}
+/* side column: demo + recipient */
+.side{width:320px;display:flex;flex-direction:column;gap:14px}
+.card{border-radius:22px;padding:14px}
+.card h3{font-size:13px;font-weight:600;margin-bottom:8px}
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
+.seg button{flex:1;height:26px;border-radius:7px;font-size:11.5px;font-weight:500;color:var(--label2)}
+.seg button.on{background:var(--glass-strong);color:var(--label);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.toggle{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-top:.5px solid var(--sep);font-size:12.5px}
+.sw{width:38px;height:23px;border-radius:12px;background:var(--fill2);position:relative;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.sw.on{background:var(--green)}.sw.on::after{transform:translateX(15px)}
+.phone{border-radius:34px;padding:12px;min-height:180px}
+.phone .notch{width:90px;height:22px;border-radius:12px;background:#000;margin:0 auto 12px}
+.notif{border-radius:18px;padding:10px 12px;background:var(--glass-strong);display:flex;flex-direction:column;gap:8px;animation:drop .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes drop{from{transform:translateY(-12px);opacity:0}}
+.notif .app{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--label2)}
+.notif .app i{width:16px;height:16px;border-radius:4px;background:linear-gradient(180deg,#ff6a5c,#e0322b);display:block}
+.notif .acts{display:flex;gap:6px}.notif .acts button{flex:1;height:30px;border-radius:9px;background:var(--fill);font-weight:600;font-size:12.5px}
+.notif .acts button.primary{background:var(--tint);color:#fff}
+.empty{font-size:12px;color:var(--label3);text-align:center;padding:24px 0}
+.metrics{display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;font-size:11.5px;font-variant-numeric:tabular-nums}
+.metrics .h{color:var(--label3);font-size:10.5px;font-weight:600}
+.metrics span:nth-child(3n+2),.metrics span:nth-child(3n){text-align:right}
+.indexing{display:flex;align-items:center;gap:8px;padding:0 6px;font-size:11.5px;color:var(--label2)}
+.indexing .bar{flex:1;max-width:90px;height:4px;border-radius:2px;background:var(--fill2);overflow:hidden}
+.indexing .bar i{display:block;height:100%;background:var(--tint)}
+.indexing.warn{color:var(--orange)}
+.hidden{display:none!important}
+@media (max-width:760px){
+  .stage{padding:0;display:block}
+  .panel{width:100%;border-radius:0;min-height:100vh;max-height:none;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))}
+  .side{width:auto;padding:12px}
+  body{font-size:15px}.ask input{font-size:16px}
+}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <main class="panel glass" id="panel" aria-label="Redtooth">
+    <section class="tile" aria-label="Audio output">
+      <div class="row">
+        <div class="icon on" id="outIcon"></div>
+        <div class="grow">
+          <div class="cap">Audio output</div>
+          <div class="audio-name ellipsis" id="outName">—</div>
+          <span class="status" id="outStatus"><i class="dot green"></i><span>Active</span></span>
+        </div>
+      </div>
+      <div class="list" id="audioList" style="margin-top:10px"></div>
+    </section>
+
+    <section class="tile" aria-label="Nearby people">
+      <div class="sect" style="padding:0 0 8px"><h2>Nearby</h2><span class="sub" id="nearbySub">Drop a file on someone to send it</span></div>
+      <div class="people" id="people"></div>
+    </section>
+
+    <section class="tile selected hidden" id="selected" aria-live="polite"></section>
+
+    <div class="scroll">
+      <div class="feed" id="feed" aria-live="polite"></div>
+    </div>
+
+    <div class="indexing hidden" id="indexing" role="status" aria-live="polite"></div>
+    <div class="chips" id="chips"></div>
+    <form class="ask" id="askForm" autocomplete="off">
+      <input id="ask" placeholder="Search or ask" aria-label="Search or ask">
+      <button type="button" class="mic" id="mic" title="Dictate" aria-label="Dictate"></button>
+      <button class="go" type="submit" aria-label="Go"></button>
+    </form>
+  </main>
+
+  <aside class="side" id="side">
+    <div class="card glass hidden" id="demoCard">
+      <h3>Demo controls</h3>
+      <div class="cap" style="margin-bottom:6px">Daniel’s headphones</div>
+      <div class="seg" id="scenario">
+        <button data-s="registered">Registered</button>
+        <button data-s="not_pairing">Not pairing</button>
+        <button data-s="no_app">No app</button>
+      </div>
+      <div class="toggle" style="margin-top:10px"><span>XM5s in pairing mode</span><button class="sw" id="pairSw" aria-label="Pairing mode"></button></div>
+      <div class="toggle"><span>Daniel accepts automatically</span><button class="sw" id="autoSw" aria-label="Auto accept"></button></div>
+      <div class="toggle"><span>Drop the live connection</span><button class="pill" id="dropBtn">Interrupt</button></div>
+    </div>
+
+    <div class="phone glass hidden" id="peerPhone" aria-label="Daniel's iPhone">
+      <div class="notch"></div>
+      <div class="cap" style="text-align:center;margin-bottom:10px">Daniel’s iPhone</div>
+      <div id="peerFeed" style="display:flex;flex-direction:column;gap:8px"><div class="empty">No notifications</div></div>
+    </div>
+
+    <div class="card glass">
+      <h3>Timing</h3>
+      <div class="metrics" id="metrics"><span class="empty" style="grid-column:1/-1;padding:4px 0">Nothing measured yet</span></div>
+    </div>
+  </aside>
+</div>
+
+<script>
+// ---------------------------------------------------------------- icons
+const I = {
+  headphones:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4.5" height="7" rx="2"/><rect x="16.5" y="14" width="4.5" height="7" rx="2"/></svg>',
+  speaker:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2.5" width="12" height="19" rx="3"/><circle cx="12" cy="14.5" r="3.2"/><circle cx="12" cy="7" r="1"/></svg>',
+  laptop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2.5 19h19"/></svg>',
+  phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2" stroke-linecap="round"/></svg>',
+  builtin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
+  send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg>',
+};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const kindIcon = k => I[k] || (k==='earbuds'?I.headphones:I.builtin);
+const EXT = {presentation:'PPT',document:'DOC',spreadsheet:'XLS',pdf:'PDF',image:'IMG',video:'MOV',audio:'AUD'};
+const extLabel = f => ((f.ext||f.name.slice(f.name.lastIndexOf('.'))||'').replace('.','').toUpperCase().slice(0,4)) || EXT[f.kind] || 'FILE';
+const ms = v => v==null ? '—' : v < 1000 ? `${v < 10 ? v.toFixed(1) : Math.round(v)} ms` : `${(v/1000).toFixed(2)} s`;
+const COLORS = ['#ff7a59','#5b8cff','#34c759','#af52de','#ff9f0a','#30b0c7'];
+const avatarColor = n => { let h=0; for (const c of n) h=(h*31+c.charCodeAt(0))>>>0; const c=COLORS[h%COLORS.length]; return `linear-gradient(180deg, ${c}, color-mix(in srgb, ${c} 75%, #000))`; };
+const initials = n => n.split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+
+// ---------------------------------------------------------------- backend
+const api = {
+  live: true,
+  async get(p){ const r = await fetch(p); if(!r.ok) throw new Error(r.status); return r.json(); },
+  async post(p, b){ const r = await fetch(p,{method:'POST',headers:{'Content-Type':'application/json','X-Redtooth':'1'},body:JSON.stringify(b||{})}); return r.json(); },
+  events(fn){ const es = new EventSource('/api/events'); ['transfer','incoming','peer_incoming','peer_nudge','status','state','reply','selected','index'].forEach(k=>es.addEventListener(k,e=>fn(k,JSON.parse(e.data)))); },
+};
+
+// ---------------------------------------------------------------- state
+let S = null; const transfers = new Map(); let lastStatus = null;
+
+function renderAudio(){
+  const out = S.audio_output, dev = out.device;
+  $('#outIcon').innerHTML = kindIcon(dev ? dev.kind : 'builtin');
+  $('#outName').textContent = dev ? ((dev.owner_name && dev.owner_name !== S.me.name ? dev.owner_name.split(' ')[0] + '’s ' : '') + dev.label) : out.name;
+  const st = $('#outStatus');
+  if (lastStatus && ['Connecting','Searching'].includes(lastStatus.label)) st.innerHTML = `<i class="dot blue"></i><span>${esc(lastStatus.label)}</span>`;
+  else st.innerHTML = dev ? `<i class="dot green"></i><span>Connected${dev.owner_name && dev.owner_name !== S.me.name ? ' · borrowed from ' + esc(dev.owner_name.split(' ')[0]) : ''}</span>` : `<i class="dot green"></i><span>This computer</span>`;
+  const list = $('#audioList');
+  const devs = S.audio_devices.filter(d => !d.active).slice(0, 4);
+  list.innerHTML = devs.map(d => {
+    const owner = d.owner_name && d.owner_name !== S.me.name ? d.owner_name.split(' ')[0] + '’s · ' : '';
+    const mine = d.paired && (!d.owner_name || d.owner_name === S.me.name);
+    const state = d.connected ? 'Connected' : d.paired ? 'Paired' : d.discoverable ? 'Nearby · pairing mode' : 'Remembered';
+    return `<div class="item row"><div class="icon sm">${kindIcon(d.kind)}</div>
+      <div class="grow"><div class="ellipsis" style="font-weight:500">${esc(d.label)}</div><div class="sub ellipsis">${esc(owner + state)}</div></div>
+      ${mine && !(S.shared||[]).includes(d.id) ? `<button class="pill ghost" data-share="${esc(d.id)}" title="Let your contacts connect to these by asking for them">Share</button>` : ''}
+      <button class="pill" data-connect="${esc(d.id)}">Connect</button></div>`;
+  }).join('');
+  list.classList.toggle('hidden', !devs.length);
+}
+
+function renderPeople(){
+  const el = $('#people');
+  if (!S.people.length){ el.innerHTML = '<div class="empty" style="grid-column:1/-1">No one nearby yet</div>'; return; }
+  el.innerHTML = S.people.map(p => {
+    const devs = p.devices.filter(d => ['phone','laptop','tablet','desktop'].includes(d.kind)).map(d => d.model || d.kind);
+    return `<button class="person" data-person="${esc(p.id)}" title="Send a file to ${esc(p.name)}">
+      <div class="avatar" style="background:${avatarColor(p.name)}">${esc(initials(p.name))}</div>${p.nearby?'<i class="near"></i>':''}
+      <div class="nm ellipsis">${esc(p.first)}</div>
+      <div class="send">Send file</div></button>`;
+  }).join('');
+}
+
+function renderSelected(){
+  const f = S.selected_file, el = $('#selected');
+  if (!f){ el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.innerHTML = `<div class="ficon ${esc(f.kind)}">${esc(extLabel(f))}</div>
+    <div class="grow"><div class="cap">Selected</div><div class="ellipsis" style="font-weight:600">${esc(f.name)}</div><div class="sub">Edited ${esc(f.when)} · ${esc(f.size_label)}</div></div>`;
+}
+
+function renderMetrics(rows){
+  const el = $('#metrics');
+  const want = ['find_match_ms','accept_to_first_byte_ms','first_byte_to_saved_ms','route_probe_ms','find_device_ms','connect_ms'];
+  rows = rows.filter(r => want.includes(r.name)).sort((a,b)=>want.indexOf(a.name)-want.indexOf(b.name));
+  if (!rows.length) return;
+  el.innerHTML = '<span class="h">Measure</span><span class="h">Last</span><span class="h">Median</span>' +
+    rows.map(r => `<span>${esc(r.label)}</span><span>${ms(r.last)}</span><span>${ms(r.p50)}</span>`).join('');
+}
+
+function renderIndexing(st){
+  const el = $('#indexing');
+  if (!st){ el.classList.add('hidden'); return; }
+  const busy = st.phase === 'indexing' || st.phase === 'discovering';
+  const blocked = (st.blocked || []).length;
+  el.classList.toggle('hidden', !busy && !blocked && !st.capped);
+  el.classList.toggle('warn', !busy && (blocked > 0 || st.capped > 0));
+  if (busy){
+    const pct = st.queued ? Math.round(100 * st.done / st.queued) : 0;
+    el.innerHTML = `<i class="dot blue"></i><span>${esc(st.label)}${st.recent_done ? ' · recent files ready' : ''}</span><span class="bar"><i style="width:${pct}%"></i></span>`;
+  } else if (blocked){
+    const hint = navigator.platform.startsWith('Mac') ? ' Allow access in System Settings › Privacy & Security › Files and Folders.' : '';
+    el.innerHTML = `<span title="${esc(st.blocked.join('\n'))}">Can't read ${blocked} folder${blocked>1?'s':''}, so files there won't show up.${hint}</span>`;
+  } else if (st.capped){
+    el.innerHTML = `<span>Indexed the ${st.in_scope.toLocaleString()} most recent files; ${st.capped.toLocaleString()} older ones were left out.</span>`;
+  }
+}
+
+function render(){ renderAudio(); renderPeople(); renderSelected(); renderDemo(); renderIndexing(S.indexing); }
+
+// ---------------------------------------------------------------- feed
+const feed = $('#feed');
+function push(el){ feed.appendChild(el); while (feed.children.length > 30) feed.firstChild.remove(); feed.parentElement.scrollTop = 1e9; }
+function userMsg(t){ const d=document.createElement('div'); d.className='msg-user'; d.textContent=t; push(d); }
+
+function fileRow(f){
+  const why = (f.why||[]).filter(w=>w!=='type').join(' · ');
+  return `<div class="file" data-file="${esc(f.path)}"><div class="ficon ${esc(f.kind)}">${esc(extLabel(f))}</div>
+    <div class="grow"><div class="ellipsis" style="font-weight:600">${esc(f.name)}</div>
+    <div class="sub ellipsis">Edited ${esc(f.when)}${f.snippet_label?` · ${esc(f.snippet_label)}`:''}</div>
+    ${f.snippet?`<div class="snip ellipsis">${esc(f.snippet)}</div>`:''}</div>
+    ${why?`<span class="why">${esc(why)}</span>`:''}</div>`;
+}
+
+function replyMsg(r){
+  const d = document.createElement('div');
+  d.className = 'msg' + (r.ok ? '' : ' err');
+  let html = `<div class="txt">${esc(r.text)}</div>`;
+  if (r.files?.length && !r.question && !r.transfer_id) html += `<div class="list">${r.files.map(fileRow).join('')}</div>`;
+  if (r.question){
+    const q = r.question, isYes = q.options.some(o=>o.id==='yes');
+    html += `<div class="opts ${isYes?'':'wide'}">${q.options.map(o =>
+      `<button class="opt ${o.id==='yes'?'yes':''}" data-q="${esc(q.id)}" data-o="${esc(o.id)}"><b>${esc(o.label)}</b>${o.detail?`<span>${esc(o.detail)}</span>`:''}</button>`).join('')}</div>`;
+  }
+  const t = r.timings || {};
+  const bits = [];
+  if (t.find_match_ms != null) bits.push(`Match <b>${ms(t.find_match_ms)}</b>`);
+  if (t.find_device_ms != null) bits.push(`Found device <b>${ms(t.find_device_ms)}</b>`);
+  if (t.connect_ms != null) bits.push(`Connect <b>${ms(t.connect_ms)}</b>`);
+  if (bits.length) html += `<div class="timings">${bits.join('')}</div>`;
+  d.innerHTML = html;
+  push(d);
+  if (r.transfer_id) push(xferCard(r.transfer_id));
+}
+
+function xferCard(id){
+  const d = document.createElement('div'); d.className='msg xfer'; d.dataset.xfer = id; updateXfer(d); return d;
+}
+function updateXfer(el){
+  const t = transfers.get(el.dataset.xfer);
+  if (!t){ el.innerHTML = '<div class="sub">Preparing…</div>'; return; }
+  el.className = 'msg xfer ' + t.status;
+  const dot = t.status==='saved'?'green':['waiting','preparing','interrupted','verifying'].includes(t.status)?'orange':t.status==='sending'?'blue':'';
+  const tm = t.timings||{};
+  el.innerHTML = `<div class="row"><div class="ficon document" style="width:26px;height:32px">${esc((t.name.split('.').pop()||'').toUpperCase().slice(0,4))}</div>
+    <div class="grow"><div class="ellipsis" style="font-weight:600">${esc(t.name)}</div>
+    <div class="status"><i class="dot ${dot}"></i><span>${esc(t.label)}</span>${t.status==='sending'&&t.rate_mbps?`<span>· ${t.rate_mbps} Mb/s</span>`:''}</div></div>
+    ${['waiting','sending','preparing','interrupted'].includes(t.status)?`<button class="pill ghost" data-cancel="${esc(t.id)}">Cancel</button>`:''}</div>
+    <div class="bar"><i style="width:${Math.round((t.status==='saved'?1:t.progress)*100)}%"></i></div>
+    <div class="timings">${t.route?`<span>${esc(t.route.label)} · ${ms(t.route.rtt_ms)} RTT</span>`:''}
+      ${tm.accept_to_first_byte_ms!=null?`<span>Accept → first byte <b>${ms(tm.accept_to_first_byte_ms)}</b></span>`:''}
+      ${tm.first_byte_to_saved_ms!=null?`<span>→ saved <b>${ms(tm.first_byte_to_saved_ms)}</b></span>`:''}
+      ${t.resumes?`<span>Resumed ×${t.resumes}</span>`:''}</div>`;
+}
+function refreshXfers(){ document.querySelectorAll('[data-xfer]').forEach(updateXfer); }
+
+// ---------------------------------------------------------------- actions
+async function ask(text){
+  if (!text.trim()) return;
+  userMsg(text);
+  const r = await api.post('/api/ask',{text});
+  replyMsg(r); await refresh();
+}
+async function refresh(){ S = await api.get('/api/state'); (S.transfers||[]).forEach(t=>transfers.set(t.id,t)); render(); refreshXfers(); api.get('/api/metrics').then(renderMetrics).catch(()=>{}); }
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button,[data-file]'); if (!b) return;
+  if (b.dataset.q){ b.closest('.opts').querySelectorAll('button').forEach(x=>x.disabled=true); userMsg(b.querySelector('b').textContent); const r = await api.post('/api/answer',{question_id:b.dataset.q, option_id:b.dataset.o}); replyMsg(r); refresh(); }
+  else if (b.dataset.connect){ b.disabled = true; b.textContent='Connecting'; const r = await api.post('/api/connect',{device_id:b.dataset.connect}); replyMsg(r); refresh(); }
+  else if (b.dataset.person){ const r = await api.post('/api/send',{person_id:b.dataset.person}); replyMsg(r); refresh(); }
+  else if (b.dataset.share){ await api.post('/api/my-devices/register',{device_id:b.dataset.share}); replyMsg({ok:true,text:'Shared. Your contacts can now ask to connect to these, and Redtooth will find them by name.',timings:{}}); refresh(); }
+  else if (b.dataset.cancel){ api.post('/api/cancel',{transfer_id:b.dataset.cancel}); }
+  else if (b.dataset.file){ const r = await api.post('/api/select',{path:b.dataset.file}); replyMsg(r); refresh(); }
+  else if (b.dataset.peer){ api.post('/api/demo/peer-accept',{id:b.dataset.peer, accept:b.dataset.accept==='1'}); }
+  else if (b.dataset.incoming){ api.post('/api/incoming/'+b.dataset.incoming,{accept:b.dataset.accept==='1'}); }
+  else if (b.dataset.chip){ ask(b.dataset.chip); }
+});
+$('#askForm').addEventListener('submit', e => { e.preventDefault(); const v = $('#ask').value; $('#ask').value=''; ask(v); });
+
+// Drag a file onto a person to send it.
+document.addEventListener('dragover', e => { const p = e.target.closest('.person'); if (p){ e.preventDefault(); p.classList.add('drop'); } });
+document.addEventListener('dragleave', e => { const p = e.target.closest('.person'); if (p) p.classList.remove('drop'); });
+document.addEventListener('drop', async e => {
+  const p = e.target.closest('.person'); if (!p) return; e.preventDefault(); p.classList.remove('drop');
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  const fd = new FormData(); fd.append('file', f);
+  await fetch('/api/stage',{method:'POST',body:fd,headers:{'X-Redtooth':'1'}});
+  const r = await api.post('/api/send',{person_id:p.dataset.person}); replyMsg(r); refresh();
+});
+
+// Dictation where the browser supports it.
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+$('#mic').innerHTML = I.mic; document.querySelector('.go').innerHTML = I.send;
+if (!SR) $('#mic').classList.add('hidden');
+else $('#mic').onclick = () => { const r = new SR(); r.lang = navigator.language; $('#mic').classList.add('live'); r.onresult = e => { const t = e.results[0][0].transcript; ask(t); }; r.onend = () => $('#mic').classList.remove('live'); r.start(); };
+
+// Suggestions
+$('#chips').innerHTML = ['Connect to my friend Daniel’s headphones','Send Daniel the deck I edited this morning','Find the deck about customer churn','Send it to his laptop instead'].map(t=>`<button class="chip" data-chip="${esc(t)}">${esc(t)}</button>`).join('');
+
+// ---------------------------------------------------------------- demo side
+function renderDemo(){
+  if (!S.demo){ $('#demoCard').classList.add('hidden'); $('#peerPhone').classList.add('hidden'); return; }
+  $('#demoCard').classList.remove('hidden'); $('#peerPhone').classList.remove('hidden');
+  document.querySelectorAll('#scenario button').forEach(b => b.classList.toggle('on', b.dataset.s === S.demo.scenario));
+  $('#pairSw').classList.toggle('on', !!S.demo.xm5_pairing);
+  $('#autoSw').classList.toggle('on', S.demo.auto_accept > 0);
+}
+$('#scenario').onclick = async e => { const s = e.target.dataset.s; if (!s) return; await api.post('/api/demo/scenario',{name:s}); feed.innerHTML=''; $('#peerFeed').innerHTML='<div class="empty">No notifications</div>'; refresh(); };
+$('#pairSw').onclick = async () => { const on = !$('#pairSw').classList.contains('on'); $('#pairSw').classList.toggle('on', on); await api.post('/api/demo/pairing',{on}); refresh(); };
+$('#autoSw').onclick = async () => { const on = !$('#autoSw').classList.contains('on'); await api.post('/api/demo/auto-accept',{seconds:on?2.5:0}); refresh(); };
+$('#dropBtn').onclick = () => api.post('/api/demo/interrupt');
+
+const peerCards = new Map();
+function peerNote(html, key){
+  const feedEl = $('#peerFeed'); feedEl.querySelector('.empty')?.remove();
+  let el = key && peerCards.get(key);
+  if (!el){ el = document.createElement('div'); el.className='notif'; feedEl.prepend(el); if (key) peerCards.set(key, el); }
+  el.innerHTML = html;
+}
+function onPeerIncoming(o){
+  if (o.owner !== 'Daniel') return;
+  const pct = o.size ? Math.round(100*o.received/o.size) : 0;
+  const line = {waiting:'wants to send you a file', receiving:`Receiving · ${pct}%`, saved:'Saved to Downloads', declined:'Declined', interrupted:'Connection lost · waiting to resume', cancelled:'Cancelled', failed:'Failed integrity check'}[o.status] || o.status;
+  peerNote(`<div class="app"><i></i>REDTOOTH · ${esc(o.to_device==='d_mba'?'MacBook Air':'iPhone')}</div>
+    <div><b>${esc(o.sender_name)}</b> ${o.status==='waiting'?esc(line):''}</div>
+    <div class="sub">${esc(o.name)}${o.status!=='waiting'?' · '+esc(line):''}</div>
+    ${o.status==='waiting'?`<div class="acts"><button data-peer="${esc(o.id)}" data-accept="0">Decline</button><button class="primary" data-peer="${esc(o.id)}" data-accept="1">Accept</button></div>`:''}`, o.id);
+}
+
+// ---------------------------------------------------------------- live events
+function onEvent(kind, d){
+  if (kind === 'transfer'){ transfers.set(d.id, d); refreshXfers(); if (['saved','declined','failed'].includes(d.status)) api.get('/api/metrics').then(renderMetrics); }
+  else if (kind === 'status'){ lastStatus = d; if (S) renderAudio(); }
+  else if (kind === 'state'){ lastStatus = null; S = {...S, ...d}; render(); }
+  else if (kind === 'reply'){ lastStatus = null; replyMsg(d); refresh(); }
+  else if (kind === 'peer_incoming'){ onPeerIncoming(d); }
+  else if (kind === 'peer_nudge'){ peerNote(`<div class="app"><i></i>REDTOOTH</div><div><b>${esc(d.from)}</b> wants to connect to your ${esc(d.kind)}</div><div class="sub">Hold the power button until the light flashes to enter pairing mode.</div>`); }
+  else if (kind === 'incoming'){ /* offers to this device */
+    if (d.status === 'waiting'){ const el = document.createElement('div'); el.className='msg'; el.innerHTML = `<div class="txt"><b>${esc(d.sender_name)}</b> wants to send you ${esc(d.name)}</div><div class="opts"><button class="opt" data-incoming="${esc(d.id)}" data-accept="0"><b>Decline</b></button><button class="opt yes" data-incoming="${esc(d.id)}" data-accept="1"><b>Accept</b></button></div>`; push(el); }
+  }
+  else if (kind === 'selected'){ refresh(); }
+  else if (kind === 'index'){ if (S) S.indexing = d; renderIndexing(d); }
+}
+
+(async () => {
+  await refresh();
+  api.events(onEvent);
+  const share = new URLSearchParams(location.search).get('share');
+  if (share){ const r = await api.post('/api/select',{path:share}); replyMsg(r); refresh(); history.replaceState(null,'','/'); }
+  setInterval(refresh, 15000);
+})();
+</script>
+</body>
+</html>
