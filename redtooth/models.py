@@ -99,6 +99,7 @@ class Contact:
     nicknames: list[str] = field(default_factory=list)
     relation: Optional[str] = None  # friend, coworker, family…
     last_interaction: Optional[float] = None
+    raw_phones: list[str] = field(default_factory=list)  # as written in the source, so a country change can re-read them
 
 
 @dataclass

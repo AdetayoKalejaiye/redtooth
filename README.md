@@ -108,7 +108,7 @@ Baseline with the fallback embedder (no model download):
 
 The fallback's non-keyword rows move by several points when its hashing changes. They're noise, not signal.
 
-The fallback is a keyword engine with typo tolerance; paraphrase and cross-language search need E5. After `redtooth models fetch`:
+E5 is the default: the first `redtooth serve`, `demo` or `eval` downloads it (~120 MB, once). The fallback above is only used if that download fails, and is a keyword engine with typo tolerance; paraphrase and cross-language search need E5. To tune ranking for E5:
 
 ```
 redtooth eval --calibrate --save      # tunes the similarity floor, band and keyword/meaning weights
@@ -122,11 +122,16 @@ Calibration reports a held-out score (tune on half the queries, score the other 
 ```
 redtooth directory --port 8790                      # one per group/household; verification codes are logged until SMS is wired up
 redtooth setup --directory http://HOST:8790         # name + phone number, verify with the code
-redtooth models fetch                               # multilingual-e5-small (quantized ONNX, ~120 MB) into ~/.cache/redtooth
-redtooth serve --open                               # panel, always-on receiver on :47800, reindex every 2 min
-redtooth install-integrations                       # Send To / context menu (Windows), Open With + Files script (Linux)
+redtooth serve --open                               # panel, always-on receiver on :47800, indexing, file-menu entries
 redtooth ask "send Daniel the deck I edited this morning"
 ```
+
+On first start `serve` downloads the search model (~120 MB, once) and adds **Send with Redtooth** to the
+file menus (`--no-integrations` to skip). Contacts: **Add contacts** in the panel takes a `.vcf`/`.csv`
+export from Google, iCloud, Outlook or Android (it offers any export already in Downloads), or add people
+by hand; macOS Contacts and Windows Outlook are read automatically. `redtooth contacts import FILE` does the
+same from the terminal. Everything platform-specific (WinRT, toasts, audio switching) installs with the base
+package.
 
 Config lives in `~/.redtooth/config.json` (contacts file, folders to index, inbox, shared devices). To make your headphones findable by friends, tap **Share** beside them in the panel. That is Daniel's step in the main flow.
 
@@ -138,7 +143,7 @@ Config lives in `~/.redtooth/config.json` (contacts file, folders to index, inbo
 | Simulated Bluetooth | Implemented, drives the demo and tests |
 | Linux / macOS / Windows Bluetooth + audio routing | Implemented against each OS's tools/APIs, **not yet run on hardware** |
 | Wi-Fi Direct | Route preference implemented; group formation for Linux (`wpa_cli`) and Windows (WinRT) not yet tested on hardware. macOS has no public API, so Macs use the LAN |
-| E5 embeddings | Implemented, not yet scored: the model host was unreachable from the build machine. Run `redtooth models fetch`, then `redtooth eval --calibrate --save` |
+| E5 embeddings | Default; downloaded automatically on first start (falls back to keyword search if offline, retries next start; opt out with `REDTOOTH_EMBEDDER=hash`). Not yet scored: the model host was unreachable from the build machine. Run `redtooth eval --calibrate --save` once it's downloaded |
 | Phones | The panel is responsive and the wire protocol is documented in `docs/PROTOCOL.md`. iOS/Android need native clients for Bluetooth, the share sheet and background receiving |
 | Quick controls | The panel opens as a compact app window (`redtooth panel`); share entry via `redtooth share FILE`. A native menu-bar / Quick Settings tile is the next step |
 

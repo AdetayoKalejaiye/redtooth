@@ -1,15 +1,15 @@
 """Windows backend.
 
 - Discovery and pairing: WinRT `Windows.Devices.Enumeration` through the
-  `winrt-Windows.Devices.*` Python packages (pip install winrt-runtime
-  winrt-Windows.Devices.Enumeration winrt-Windows.Devices.Bluetooth).
+  `winrt-Windows.Devices.*` Python packages (installed with Redtooth on Windows).
   Pairing goes through `DeviceInformation.Pairing.PairAsync`, so the user
   never has to open Settings or put this PC in a "receive" mode.
 - Connecting an already-paired headset: toggling its audio services with
   Win32 `BluetoothSetServiceState` (bthprops.cpl) makes Windows reconnect it.
-- Output routing: Windows has no public API to change the default render
-  device; we use the AudioDeviceCmdlets PowerShell module if present
-  (Install-Module AudioDeviceCmdlets), which wraps IPolicyConfig.
+- Output routing: Core Audio through pycaw (installed with Redtooth): list the
+  playback endpoints, read the default, and set it with IPolicyConfig (the
+  interface the Sound settings page uses; undocumented but stable since Vista).
+  The AudioDeviceCmdlets PowerShell module is used only if pycaw can't load.
 - Wi-Fi Direct: `Windows.Devices.WiFiDirect` (WiFiDirectDevice.FromIdAsync).
 
 Not exercised on hardware in this build.
@@ -19,14 +19,76 @@ from __future__ import annotations
 import asyncio
 import ctypes
 import json
+import logging
 import re
 from typing import Optional
 
 from ..models import Device
 from .base import AudioOutput, BluetoothPlatform, enrich, norm_addr, run
 
+log = logging.getLogger("redtooth.windows")
+
 A2DP_SINK = "{0000110B-0000-1000-8000-00805F9B34FB}"
 HFP = "{0000111E-0000-1000-8000-00805F9B34FB}"
+
+
+def _render_endpoints() -> tuple[list[dict], Optional[str]]:
+    """Active playback endpoints (id, friendly name, whether it's Bluetooth) and the current default's id."""
+    import warnings
+
+    import comtypes
+    from pycaw.constants import DEVICE_STATE, EDataFlow
+    from pycaw.pycaw import AudioUtilities
+
+    comtypes.CoInitialize()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            devs = AudioUtilities.GetAllDevices(data_flow=EDataFlow.eRender.value, device_state=DEVICE_STATE.ACTIVE.value)
+            default = AudioUtilities.GetSpeakers()
+        eps = []
+        for d in devs:
+            props = getattr(d, "properties", {}) or {}
+            bt = any(isinstance(v, str) and v.upper().startswith(("BTHENUM", "BTHHFENUM", "BTHLE")) for v in props.values()) \
+                or any(isinstance(v, str) and "BTHENUM" in v.upper() for v in props.values())
+            eps.append({"id": d.id, "name": d.FriendlyName or "", "bluetooth": bt})
+        return eps, getattr(default, "id", None)
+    finally:
+        comtypes.CoUninitialize()
+
+
+def _pick_endpoint(eps: list[dict], names: list[str]) -> Optional[dict]:
+    """Windows names endpoints "Headphones (WH-1000XM5)"; match the Bluetooth name or model either way round."""
+    wanted = [n.lower() for n in names if n]
+
+    def hit(e: dict) -> bool:
+        full = e["name"].lower()
+        m = re.search(r"\((.+?)\)", full)
+        inner = (m.group(1) if m else full).replace("hands-free ag audio", "").replace("stereo", "").strip()
+        return any(w in full or (inner and inner in w) for w in wanted)
+
+    matches = [e for e in eps if hit(e)]
+    matches.sort(key=lambda e: ("hands-free" in e["name"].lower(), not e["bluetooth"], len(e["name"])))
+    return matches[0] if matches else None
+
+
+def _set_default_render(names: list[str]) -> bool:
+    """Make the playback endpoint whose name matches the device the default, for music and calls.
+    Stereo endpoints win over hands-free ones ("Headphones (WH-1000XM5)" over "Headset (… Hands-Free)")."""
+    import comtypes
+    from pycaw.constants import ERole
+    from pycaw.pycaw import AudioUtilities
+
+    eps, _ = _render_endpoints()
+    pick = _pick_endpoint(eps, names)
+    if not pick:
+        return False
+    comtypes.CoInitialize()
+    try:
+        AudioUtilities.SetDefaultDevice(pick["id"], roles=[ERole.eConsole, ERole.eMultimedia, ERole.eCommunications])
+        return True
+    finally:
+        comtypes.CoUninitialize()
 
 
 def _addr_from_id(s: str) -> Optional[str]:
@@ -140,6 +202,16 @@ class WindowsBluetooth(BluetoothPlatform):
         return await asyncio.get_running_loop().run_in_executor(None, self._set_services, dev, False)
 
     async def audio_output(self) -> AudioOutput:
+        loop = asyncio.get_running_loop()
+        try:
+            eps, default_id = await loop.run_in_executor(None, _render_endpoints)
+            cur = next((e for e in eps if e["id"] == default_id), None)
+            if cur:
+                return AudioOutput(cur["name"], None, "bluetooth" if cur["bluetooth"] else "other")
+        except ImportError:
+            pass
+        except Exception as e:
+            log.info("Core Audio read failed: %s", e)
         out = await self._ps("Import-Module AudioDeviceCmdlets; Get-AudioDevice -Playback | Select-Object Name,ID | ConvertTo-Json", timeout=8)
         try:
             d = json.loads(out)
@@ -148,6 +220,13 @@ class WindowsBluetooth(BluetoothPlatform):
             return AudioOutput("Unknown")
 
     async def set_audio_output(self, dev: Device) -> bool:
+        names = [n for n in (dev.name, dev.model, dev.short_model) if n]
+        try:
+            return await asyncio.get_running_loop().run_in_executor(None, _set_default_render, names)
+        except ImportError:
+            pass
+        except Exception as e:
+            log.info("Core Audio switch failed: %s", e)
         short = dev.name.replace("'", "''")
         out = await self._ps(
             f"Import-Module AudioDeviceCmdlets; $d = Get-AudioDevice -List | Where-Object {{$_.Type -eq 'Playback' -and $_.Name -like '*{short}*'}} | Select-Object -First 1; "
