@@ -28,6 +28,7 @@ STATUS_LABELS = {
     "declined": "Declined",
     "failed": "Couldn't send",
     "cancelled": "Cancelled",
+    "handoff": "Finish in Bluetooth File Exchange",
 }
 
 
@@ -159,7 +160,7 @@ class Sender:
                 self._set(t, "saved", sent=t.size)
             self.metrics.record("bluetooth_push_ms", now_ms() - t0, size=t.size)
         except ObexError as e:
-            self._set(t, {"declined": "declined", "cancelled": "cancelled"}.get(e.kind, "failed"), error=str(e))
+            self._set(t, {"declined": "declined", "cancelled": "cancelled", "handoff": "handoff"}.get(e.kind, "failed"), error=str(e))
         except asyncio.CancelledError:
             cancel.set()
             self._set(t, "cancelled")
