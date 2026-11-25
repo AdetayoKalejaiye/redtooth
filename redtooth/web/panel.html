@@ -244,9 +244,15 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 
     <div class="view settings hidden" id="settings">
       <section class="tile" id="sec-devices">
-        <h2>Bluetooth devices</h2>
-        <p>Everything paired with this computer. For the ones that belong to you, turn on <b>Mine</b>: then a contact who uses Redtooth can say “connect to <span class="me-first">your</span>’s speaker” and their Redtooth knows exactly which one you mean. Marking your phone also tells Redtooth where “send it to my phone” goes. Nothing is shared until you turn it on.</p>
+        <h2>Your devices</h2>
+        <p>The headphones, speakers and phone that belong to you. A contact who uses Redtooth can then say “connect to <span class="me-first">your</span>’s speaker” and their Redtooth knows exactly which one you mean, and “send it to my phone” knows where to go. Nothing is shared until you add it here.</p>
         <div id="myDevices"><div class="note">Loading…</div></div>
+      </section>
+
+      <section class="tile" id="sec-bluetooth">
+        <h2>Paired with this computer</h2>
+        <p>Every Bluetooth device this computer knows. Connect or disconnect them here, or mark one as yours.</p>
+        <div id="btDevices"><div class="note">Loading…</div></div>
       </section>
 
       <section class="tile" id="sec-contacts">
@@ -358,7 +364,7 @@ function renderAudio(){
   sb.classList.toggle('hidden', !S.setup_issue);
   if (S.setup_issue){ const [msg, cmd] = S.setup_issue.split(' Run: '); sb.innerHTML = `<div class="grow">${esc(msg)}<br>Run this in PowerShell, then restart Redtooth:<br><code style="user-select:all;font-size:11px;word-break:break-all">${esc(cmd||'')}</code></div>`; }
   rb.textContent = radio === 'missing' ? 'This computer has no Bluetooth adapter Redtooth can use.' : 'Bluetooth is off. Turn it on in Quick Settings (Win + A) to connect headphones.';
-  // Only what's connected right now; everything else lives in Settings › Your devices.
+  // Only what's connected right now; everything else lives in Settings (Your devices, Paired with this computer).
   const list = $('#audioList');
   const devs = S.audio_devices.filter(d => !d.active && d.connected && d.paired).slice(0, 4);
   list.innerHTML = devs.map(d => {
@@ -370,7 +376,7 @@ function renderAudio(){
   const nPaired = S.audio_devices.filter(d => d.paired).length + (S.other_devices || []).length;
   const nMine = S.audio_devices.filter(d => d.mine).length + (S.other_devices || []).filter(d => d.mine).length;
   list.innerHTML += `<button class="linkrow" data-goto="devices"><div class="icon sm">${I.headphones}</div>
-      <div class="grow"><b>Bluetooth devices</b><span class="sub">${nPaired ? `${nPaired} paired with this computer · connect, disconnect, choose what contacts can ask for` : 'Nothing paired yet'}</span></div><span class="chev">›</span></button>`;
+      <div class="grow"><b>Your devices</b><span class="sub">${nMine ? `${nMine} marked as yours` : 'Mark which are yours'} · ${nPaired} paired with this computer</span></div><span class="chev">›</span></button>`;
   list.classList.remove('hidden');
   renderNearby();
 }
@@ -465,18 +471,24 @@ $('#openSettings').onclick = () => showView($('#settings').classList.contains('h
 async function loadMyDevices(){
   const r = await api.get('/api/my-devices');
   document.querySelectorAll('.me-first').forEach(e => e.textContent = r.me);
-  const el = $('#myDevices');
-  const devs = r.devices;
-  if (!devs.length){ el.innerHTML = '<div class="note">Nothing is paired with this computer yet. Use “Pair new device” on the main screen first.</div>'; return; }
   const audio = ['headphones','earbuds','speaker'];
-  el.innerHTML = devs.map(d => `<div class="mine" data-dev="${esc(d.id)}">
+  const state = d => `${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.connected ? '<i class="dot green"></i>Connected' : 'Not connected'}`;
+  const action = d => audio.includes(d.kind) ? (d.connected ? `<button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button>` : `<button class="pill" data-connect="${esc(d.id)}">Connect</button>`) : '';
+  // Your devices: the ones you've claimed, with the name friends use.
+  const mine = r.devices.filter(d => d.mine);
+  $('#myDevices').innerHTML = mine.length ? mine.map(d => `<div class="mine" data-dev="${esc(d.id)}">
       <div class="head"><div class="icon sm">${kindIcon(d.kind)}</div>
-        <div class="grow"><div class="ellipsis nm">${esc(d.label || d.model || d.name)}</div>
-          <div class="sub state">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.connected ? '<i class="dot green"></i>Connected' : 'Not connected'}${d.mine ? ' · <b style="color:var(--tint)">mine</b>' : ''}</div></div>
-        <div class="acts">${audio.includes(d.kind) ? (d.connected ? `<button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button>` : `<button class="pill" data-connect="${esc(d.id)}">Connect</button>`) : ''}</div></div>
-      <div class="toggle" style="padding:2px 0 0 38px;border:0"><span class="sub">Mine · contacts can ask for it</span><button class="sw ${d.mine?'on':''}" data-mine="${esc(d.id)}" aria-label="Mine, contacts can ask for it"></button></div>
-      <div class="alias ${d.mine?'':'hidden'}"><input class="input" data-alias="${esc(d.id)}" placeholder="What friends call it, e.g. ${esc(r.me)}’s ${esc((KIND_LABEL[d.kind] || 'device').toLowerCase())}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button></div>
-    </div>`).join('');
+        <div class="grow"><div class="ellipsis nm">${esc(d.label || d.model || d.name)}</div><div class="sub state">${state(d)}${d.alias ? ' · ' + esc(d.name) : ''}</div></div>
+        <div class="acts">${action(d)}</div></div>
+      <div class="alias"><input class="input" data-alias="${esc(d.id)}" placeholder="Name friends use, e.g. ${esc(r.me)}’s ${esc((KIND_LABEL[d.kind] || 'device').toLowerCase())}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button><button class="pill ghost" data-mine="${esc(d.id)}" data-off="1" title="Not mine">Remove</button></div>
+    </div>`).join('')
+    : `<div class="note">None yet. Pick yours from “Paired with this computer” below.</div>`;
+  // Everything paired: connect/disconnect, and "This is mine" to add it to Your devices.
+  const rest = r.devices.filter(d => !d.mine);
+  $('#btDevices').innerHTML = rest.length ? rest.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
+      <div class="grow"><div class="ellipsis nm">${esc(d.model || d.name)}</div><div class="sub state">${state(d)}</div></div>
+      ${action(d)}<button class="pill ghost" data-mine="${esc(d.id)}" title="Add to Your devices">This is mine</button></div>`).join('')
+    : `<div class="note">${r.devices.length ? 'All paired devices are in Your devices.' : 'Nothing is paired yet. Use “Pair new device” on the main screen.'}</div>`;
 }
 async function setMine(id, mine, alias){
   const r = await api.post('/api/my-devices',{device_id:id, mine, alias});
@@ -617,7 +629,7 @@ document.addEventListener('click', async e => {
   else if (b.dataset.pair){ b.disabled = true; b.textContent='Pairing'; const r = await api.post('/api/pair',{device_id:b.dataset.pair}); replyMsg(r); refresh(); }
   else if (b.id === 'scanBtn'){ scan(); }
   else if (b.dataset.goto){ showView('settings', b.dataset.goto); }
-  else if (b.dataset.mine){ const on = !b.classList.contains('on'); b.classList.toggle('on', on); setMine(b.dataset.mine, on, on ? (document.querySelector(`[data-alias="${CSS.escape(b.dataset.mine)}"]`)?.value || '') : null); }
+  else if (b.dataset.mine){ setMine(b.dataset.mine, !b.dataset.off, null); }
   else if (b.dataset.saveAlias){ setMine(b.dataset.saveAlias, true, document.querySelector(`[data-alias="${CSS.escape(b.dataset.saveAlias)}"]`).value); }
   else if (b.dataset.cancel){ api.post('/api/cancel',{transfer_id:b.dataset.cancel}); }
   else if (b.dataset.file){ const r = await api.post('/api/select',{path:b.dataset.file}); replyMsg(r); refresh(); }
