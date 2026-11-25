@@ -725,7 +725,8 @@ class Agent:
         # Everything a normal Bluetooth scan finds; audio first.
         nearby = sorted((d.to_dict() for d in self.last_scan if d.id not in paired_ids and d.id not in audio),
                         key=lambda d: (d["kind"] not in AUDIO_KINDS, -(d.get("rssi") or -100)))
-        others = [{**d.to_dict(), "mine": d.id in marked} for d in paired if d.kind not in AUDIO_KINDS]
+        others = [{**d.to_dict(), "mine": d.id in marked, **({"label": marked[d.id].alias} if d.id in marked and marked[d.id].alias else {})}
+                  for d in paired if d.kind not in AUDIO_KINDS]
         people = [p.to_dict() for p in self.people.all_people() if p.has_app or p.nearby][:8]
         return {
             "me": {"name": self.me.name, "phone": self.me.phone},
