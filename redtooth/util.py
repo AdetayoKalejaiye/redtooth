@@ -62,3 +62,11 @@ def human_bytes(n: float) -> str:
             return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
         n /= 1024
     return f"{n:.1f} GB"
+
+
+def drop_owner(label: str, first: str) -> str:
+    """"your Alex's S24" reads badly: drop the owner's name from a device name when we already say whose it is."""
+    low, f = label.lower(), (first or "").lower()
+    if f and (low.startswith(f + "'s ") or low.startswith(f + "’s ")):
+        return label[len(first) + 3:]
+    return label

@@ -678,6 +678,11 @@ class WindowsBluetooth(BluetoothPlatform):
             _warn_once("switching the audio output", e)
             return False
 
+    def push_file(self, address: str, path: str, progress, cancel) -> None:
+        from ..transfer.obex import send_file
+
+        send_file(address, path, progress, cancel)
+
     def output_matches(self, out: AudioOutput, dev: Device) -> bool:
         if out.address and dev.address:
             return norm_addr(out.address) == norm_addr(dev.address)
