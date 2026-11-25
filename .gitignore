@@ -16,3 +16,6 @@ ios/**/*.xcodeproj/
 ios/**/xcuserdata/
 ios/**/.build/
 ios/**/DerivedData/
+ios/*.xcodeproj/
+ios/**/.build/
+ios/**/.swiftpm/
