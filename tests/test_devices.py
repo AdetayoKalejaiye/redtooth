@@ -1,4 +1,6 @@
 """Your own headphones: honest connect results, asking which, scanning and pairing new ones, marking as yours."""
+import asyncio
+
 import pytest
 
 from redtooth.demo import build_demo
@@ -63,3 +65,33 @@ async def test_mark_as_yours_with_a_name(tmp_path):
     assert not mine["bt:ch720"]["mine"] and pushed[-1] == ["bt:redmi"]
     await d.agent.set_mine("bt:redmi", False)
     assert pushed[-1] == [] and not (await d.agent.my_devices())[0]["mine"]
+
+
+async def test_send_to_my_phone_over_bluetooth(tmp_path):
+    d = await world(tmp_path)
+    d.world.add(Device("bt:s24", "Alex's S24", "phone", address="AA:BB:CC:00:11:22"))
+    d.world.paired.add("bt:s24")
+    r = await d.agent.ask("send the Q4 board update to my phone")
+    assert r.ok and r.transfer_id and "over Bluetooth" in r.text and "S24" in r.text, r.text
+    t = d.agent.sender.transfers[r.transfer_id]
+    for _ in range(100):
+        if t.status in ("saved", "failed", "declined"):
+            break
+        await asyncio.sleep(0.02)
+    assert t.status == "saved" and t.via == "bluetooth" and t.label == "Saved to your S24", (t.status, t.error, t.label)
+
+
+async def test_phone_is_not_an_audio_output(tmp_path):
+    d = await world(tmp_path)
+    d.world.add(Device("bt:s24", "Alex's S24", "phone", address="AA:BB:CC:00:11:22"))
+    d.world.paired.add("bt:s24")
+    r = await d.agent.connect_device("bt:s24")
+    assert not r.ok and "is a phone" in r.text and "audio is playing" not in r.text.lower(), r.text
+
+
+async def test_iphone_gets_a_straight_answer(tmp_path):
+    d = await world(tmp_path)
+    d.world.add(Device("bt:ip", "Alex's iPhone", "phone", address="AA:BB:CC:00:11:33"))
+    d.world.paired.add("bt:ip")
+    r = await d.agent.ask("send the Q4 board update to my phone")
+    assert not r.ok and "iPhones don't accept Bluetooth file transfers" in r.text, r.text

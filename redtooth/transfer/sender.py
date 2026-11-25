@@ -14,7 +14,7 @@ from typing import Callable, Optional
 
 from ..metrics import Metrics
 from ..models import Device, Person
-from ..util import new_id, now_ms, possessive
+from ..util import drop_owner, new_id, now_ms, possessive
 from .protocol import CHUNK, CHUNK_HASHES, read_frame, send_frame, tune
 from .routes import Route, Router
 
@@ -48,13 +48,20 @@ class Transfer:
     resumes: int = 0
     timings: dict = field(default_factory=dict)
     created: float = field(default_factory=time.time)
+    via: str = "redtooth"  # redtooth (app to app) | bluetooth (OBEX push to a phone without the app)
 
     @property
     def label(self) -> str:
+        whose = "your" if self.person.is_self else possessive(self.person.first)
+        dev = drop_owner(self.device.label(), self.person.first)
         if self.status == "sending" and self.size:
             return f"Sending · {int(100 * self.sent / self.size)}%"
         if self.status == "saved":
-            return f"Saved to {possessive(self.person.first)} {self.device.label()}"
+            return f"Saved to {whose} {dev}"
+        if self.via == "bluetooth" and self.status == "waiting":
+            return f"Tap Accept on {whose} {dev}"
+        if self.via == "bluetooth" and self.status == "preparing":
+            return f"Connecting to {whose} {dev}"
         return STATUS_LABELS.get(self.status, self.status).format(first=self.person.first)
 
     def to_dict(self) -> dict:
@@ -75,6 +82,7 @@ class Transfer:
             "saved_name": self.saved_name,
             "resumes": self.resumes,
             "timings": {k: round(v, 1) for k, v in self.timings.items()},
+            "via": self.via,
         }
 
 
@@ -108,9 +116,62 @@ class Sender:
         self.tasks[t.id] = asyncio.create_task(self._run(t))
         return t
 
+    def start_bluetooth(self, path: str, person: Person, device: Device, push: Callable) -> Transfer:
+        """Plain-Bluetooth file push (OBEX) to a paired phone that doesn't run Redtooth."""
+        st = os.stat(path)
+        t = Transfer(new_id("t_"), path, os.path.basename(path), st.st_size, person, device, via="bluetooth")
+        self.transfers[t.id] = t
+        self.tasks[t.id] = asyncio.create_task(self._run_bluetooth(t, push))
+        return t
+
+    async def _run_bluetooth(self, t: Transfer, push: Callable) -> None:
+        import threading
+
+        from .obex import ObexError
+
+        loop = asyncio.get_running_loop()
+        cancel = threading.Event()
+        t.__dict__["_cancel"] = cancel
+        t0, accepted = now_ms(), [0.0]
+
+        def apply(n: int, stage: str) -> None:
+            if stage == "waiting":
+                self._set(t, "waiting")
+            elif stage == "sending":
+                if not accepted[0]:
+                    accepted[0] = now_ms()
+                    t.timings["accept_to_first_byte_ms"] = 0.0
+                el = max(1e-3, (now_ms() - accepted[0]) / 1000)
+                self._set(t, "sending", sent=n, rate_bps=n / el)
+            elif stage == "saved":
+                if accepted[0]:
+                    t.timings["first_byte_to_saved_ms"] = now_ms() - accepted[0]
+                self._set(t, "saved", sent=t.size)
+
+        def progress(n: int, stage: str) -> None:
+            loop.call_soon_threadsafe(apply, n, stage)
+
+        self._set(t, "preparing")
+        try:
+            await loop.run_in_executor(None, push, t.device.address, t.path, progress, cancel)
+            await asyncio.sleep(0)  # let the last progress callback land
+            if t.status != "saved":
+                self._set(t, "saved", sent=t.size)
+            self.metrics.record("bluetooth_push_ms", now_ms() - t0, size=t.size)
+        except ObexError as e:
+            self._set(t, {"declined": "declined", "cancelled": "cancelled"}.get(e.kind, "failed"), error=str(e))
+        except asyncio.CancelledError:
+            cancel.set()
+            self._set(t, "cancelled")
+            raise
+        except Exception as e:
+            self._set(t, "failed", error=str(e))
+
     def cancel(self, tid: str) -> bool:
         task = self.tasks.get(tid)
         t = self.transfers.get(tid)
+        if t is not None and "_cancel" in t.__dict__:
+            t.__dict__["_cancel"].set()
         if task and not task.done():
             task.cancel()
             if t:
