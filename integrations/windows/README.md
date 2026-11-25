@@ -1,18 +1,21 @@
 # Windows
 
-Everything Windows needs installs with Redtooth (`pip install -e .`): WinRT Bluetooth discovery and pairing,
-Wi-Fi Direct, Accept/Decline toasts, and switching the audio output (Core Audio through pycaw). No
-PowerShell modules, no admin rights.
+`pip install -e .` installs everything Windows needs: WinRT (Bluetooth devices, pairing, radio state, Wi-Fi
+Direct), Core Audio through pycaw/comtypes (audio outputs, reconnecting Bluetooth headsets, switching the
+default output), win11toast (Accept/Decline notifications), and pystray (tray icon). No PowerShell modules,
+no admin rights.
 
-The first `redtooth serve` also adds:
-- **Send To › Redtooth** (`%APPDATA%\Microsoft\Windows\SendTo\Redtooth.cmd`)
-- **Send with Redtooth** in the file context menu (HKCU)
+- `redtooth setup` once, then `redtooth start`. Redtooth lives in the notification area; left-click for the
+  panel (an Edge app window docked above the taskbar), right-click for the menu.
+- Start when I sign in: tray menu or Settings. It adds `pythonw -m redtooth.cli serve --background` to
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+- The first start adds Redtooth to the Start menu, **Send To › Redtooth**, and **Send with Redtooth** in the
+  file right-click menu (all per-user). Remove with `redtooth install-integrations --remove`.
+- `redtooth doctor` prints the Bluetooth radio state, paired devices with their real connection state, every
+  audio output Windows knows (and which are Bluetooth), the current output, and an 8-second scan.
 
-Both run `redtooth share <file>`, which opens the panel with the file selected. Skip them with
-`redtooth serve --no-integrations`, or remove them later with `redtooth install-integrations --remove`.
-
-Contacts: if Outlook is installed, its contacts are read automatically. Otherwise use **Add contacts** in the
-panel: it offers any contacts export already in Downloads, takes a dropped `.vcf`/`.csv` (Google, iCloud,
-Outlook, Android), or lets you add people by hand.
-
-No "receive mode": `redtooth serve` listens all the time and asks with a toast when a file arrives.
+How the Bluetooth parts work: paired devices and their state come from WinRT association endpoints
+(`System.Devices.Aep.IsConnected`); scanning uses an association-endpoint watcher with Bluetooth inquiry;
+pairing uses `DeviceInformationCustomPairing` (confirm-only or PIN 0000); connecting an already-paired headset
+sends the Bluetooth audio driver's one-shot reconnect (`KSPROPSETID_BtAudio`) through `IKsControl`, falling
+back to restarting the device's audio services, and is only reported as connected once Windows says so.

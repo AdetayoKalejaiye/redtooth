@@ -41,6 +41,7 @@ class InMemoryDirectory:
         self.pending_codes: dict[str, tuple[str, float]] = {}
         self.inboxes: dict[str, list[dict]] = {}
         self.listeners: dict[str, list[NudgeHandler]] = {}
+        self.code_sink: Optional[Callable[[str, str], None]] = None  # where verification codes go (no SMS yet)
         # With a path, registrations survive restarts (no need to set up every device again).
         self.path = Path(path) if path else None
         if self.path and self.path.exists():
@@ -66,7 +67,7 @@ class InMemoryDirectory:
         phone = normalize_phone(phone)
         code = f"{secrets.randbelow(10**6):06d}"
         self.pending_codes[phone] = (code, time.time() + 600)
-        (sender or (lambda p, c: log.warning("Verification code for %s: %s", p, c)))(phone, code)
+        (sender or self.code_sink or (lambda p, c: log.warning("Verification code for %s: %s", p, c)))(phone, code)
 
     def verify(self, phone: str, code: str, name: str) -> Optional[str]:
         phone = normalize_phone(phone)

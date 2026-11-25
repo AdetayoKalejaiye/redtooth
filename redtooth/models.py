@@ -58,9 +58,11 @@ class Device:
     wifi_direct: bool = False
     sources: list[str] = field(default_factory=list)  # remembered|paired|nearby|directory
     last_seen: Optional[float] = None
+    present: Optional[bool] = None  # in range, when the OS can tell (None = unknown)
+    alias: Optional[str] = None  # what its owner calls it ("Rob's Sony headphones")
 
     def label(self) -> str:
-        return self.model or self.name
+        return self.alias or self.model or self.name
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -69,8 +71,8 @@ class Device:
 
     @staticmethod
     def from_dict(d: dict[str, Any]) -> "Device":
-        d = dict(d)
-        d.pop("label", None)
+        known = Device.__dataclass_fields__
+        d = {k: v for k, v in d.items() if k in known}  # tolerate fields from newer/older versions
         d["endpoints"] = [Endpoint(**e) if isinstance(e, dict) else e for e in d.get("endpoints", [])]
         return Device(**d)
 

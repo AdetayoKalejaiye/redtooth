@@ -130,19 +130,46 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .indexing .bar i{display:block;height:100%;background:var(--tint)}
 .indexing.warn{color:var(--orange)}
 .hidden{display:none!important}
-.contacts .cbody{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-.contacts .drop{border:1.5px dashed var(--sep);border-radius:12px;padding:12px;text-align:center;color:var(--label2);font-size:12px;transition:background .15s,border-color .15s}
-.contacts .drop.over{background:var(--tint-soft);border-color:var(--tint);color:var(--tint)}
-.contacts .drop label{color:var(--tint);font-weight:600;cursor:pointer}
-.contacts .links{font-size:11.5px;color:var(--label2);line-height:1.5}
-.contacts .links a{color:var(--tint);text-decoration:none}
-.contacts form{display:flex;gap:6px}
-.contacts input[type=text],.contacts input[type=tel]{flex:1;min-width:0;height:28px;border-radius:8px;border:0;background:var(--fill);padding:0 9px;font:inherit;color:inherit}
-.contacts .found{display:flex;flex-direction:column;gap:6px}
-.contacts .found .pill{text-align:left;justify-content:flex-start;display:flex;align-items:center}
-.contacts .note{font-size:12px}
-.contacts .country{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.contacts select{height:26px;border-radius:8px;border:0;background:var(--fill);padding:0 6px;font:inherit;color:inherit;max-width:100%}
+.top{display:flex;align-items:center;gap:8px;padding:2px 4px 0 8px}
+.top h1{font-size:14px;font-weight:700;letter-spacing:-.01em;flex:1}
+.iconbtn{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--label2)}
+.iconbtn:hover{background:var(--fill);color:var(--label)}
+.iconbtn svg{width:18px;height:18px}
+.view{display:flex;flex-direction:column;gap:10px;min-height:0;flex:1 1 auto}
+.banner{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:var(--tint-soft);font-size:12.5px}
+.banner.warn{background:color-mix(in srgb,var(--orange) 16%,transparent)}
+.banner .grow{line-height:1.35}
+.devrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:.5px solid var(--sep)}
+.devrow:first-child{border-top:0}
+.devrow .nm{font-weight:500}
+.state{display:inline-flex;align-items:center;gap:5px}
+.scanbar{display:flex;align-items:center;gap:8px;margin-top:8px}
+.hint{font-size:11.5px;color:var(--label2);line-height:1.4}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--fill2);border-top-color:var(--tint);animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* settings */
+.settings{overflow:auto;gap:12px;padding-bottom:4px}
+.settings .tile{display:flex;flex-direction:column;gap:10px;padding:14px}
+.settings h2{font-size:14px;font-weight:650}
+.settings p{font-size:12.5px;color:var(--label2);line-height:1.45}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11.5px;font-weight:600;color:var(--label2)}
+.input,.settings select{height:34px;border-radius:10px;border:0;background:var(--fill);padding:0 11px;font:inherit;font-size:13px;color:inherit;width:100%;min-width:0}
+.mine{display:flex;flex-direction:column;gap:8px;padding:10px 0;border-top:.5px solid var(--sep)}
+.mine:first-of-type{border-top:0}
+.mine .head{display:flex;align-items:center;gap:10px}
+.mine .alias{display:flex;gap:6px;align-items:center;padding-left:38px}
+.drop{border:1.5px dashed var(--sep);border-radius:14px;padding:18px 12px;text-align:center;color:var(--label2);font-size:12.5px;line-height:1.5;transition:background .15s,border-color .15s}
+.drop.over{background:var(--tint-soft);border-color:var(--tint);color:var(--tint)}
+.drop label{color:var(--tint);font-weight:600;cursor:pointer}
+.how{display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.how div{display:flex;gap:8px;align-items:baseline}
+.how b{min-width:74px;font-weight:600}
+.how a{color:var(--tint);text-decoration:none}
+.stack{display:flex;flex-direction:column;gap:8px}
+.found{display:flex;flex-direction:column;gap:6px}
+.found .pill{height:34px;text-align:left;display:flex;align-items:center}
+.note{font-size:12px;color:var(--label2);min-height:16px}
 .sect .sub a,.sect .sub button{color:var(--tint);font-weight:600;font-size:12px}
 @media (max-width:760px){
   .stage{padding:0;display:block}
@@ -156,38 +183,37 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 <body>
 <div class="stage">
   <main class="panel glass" id="panel" aria-label="Redtooth">
-    <section class="tile" aria-label="Audio output">
+    <header class="top">
+      <h1 id="title">Redtooth</h1>
+      <button class="iconbtn" id="openSettings" title="Settings" aria-label="Settings"></button>
+    </header>
+
+    <div class="view" id="home">
+    <div class="banner warn hidden" id="radioBanner" role="status"></div>
+    <section class="tile" aria-label="Audio">
       <div class="row">
         <div class="icon on" id="outIcon"></div>
         <div class="grow">
-          <div class="cap">Audio output</div>
+          <div class="cap">Playing through</div>
           <div class="audio-name ellipsis" id="outName">—</div>
-          <span class="status" id="outStatus"><i class="dot green"></i><span>Active</span></span>
+          <span class="status" id="outStatus"><i class="dot green"></i><span>This computer</span></span>
         </div>
       </div>
-      <div class="list" id="audioList" style="margin-top:10px"></div>
+      <div class="list" id="audioList" style="margin-top:8px"></div>
+      <div class="scanbar" id="scanBar">
+        <button class="pill" id="scanBtn">Add a device</button>
+        <span class="hint grow" id="scanHint"></span>
+      </div>
+      <div class="list" id="nearbyList"></div>
     </section>
 
-    <section class="tile contacts hidden" id="contactsTile" aria-label="Contacts">
-      <div class="sect" style="padding:0"><h2>Add your contacts</h2><button class="pill ghost" id="contactsClose" title="Hide" aria-label="Hide">Later</button></div>
-      <div class="sub">So Redtooth knows who “Daniel” is. Contacts stay on this computer; only hashed numbers are looked up.</div>
-      <div class="cbody">
-        <div class="found" id="contactsFound"></div>
-        <div class="drop" id="contactsDrop">Drop a contacts file here or <label>choose one<input type="file" id="contactsFile" accept=".vcf,.vcard,.csv,.json,text/vcard,text/csv" hidden></label><br><span style="color:var(--label3)">.vcf or .csv from any phone or account</span></div>
-        <div class="links">Get one from
-          <a href="https://contacts.google.com/" target="_blank" rel="noopener" title="Select all › Export › vCard">Google</a> ·
-          <a href="https://www.icloud.com/contacts/" target="_blank" rel="noopener" title="Select all › Export vCard">iCloud (iPhone)</a> ·
-          <a href="https://outlook.live.com/people/" target="_blank" rel="noopener" title="Manage › Export contacts">Outlook</a> ·
-          Android: Contacts › Fix &amp; manage › Export to file</div>
-        <form id="contactsAdd" autocomplete="off"><input type="text" name="name" placeholder="Name" aria-label="Name"><input type="tel" name="phone" placeholder="Phone number" aria-label="Phone number"><button class="pill tint" type="submit">Add</button></form>
-        <div class="country sub"><span>Numbers without a country code are read as</span>
-          <select id="countrySel" aria-label="Country for phone numbers"></select></div>
-        <div class="note sub" id="contactsNote" role="status"></div>
-      </div>
-    </section>
+    <div class="banner hidden" id="contactsBanner">
+      <div class="grow">Add your contacts so Redtooth knows who “Daniel” is.</div>
+      <button class="pill tint" data-goto="contacts">Add</button>
+    </div>
 
     <section class="tile" aria-label="Nearby people">
-      <div class="sect" style="padding:0 0 8px"><h2>Nearby</h2><span class="sub" id="nearbySub">Drop a file on someone to send it</span></div>
+      <div class="sect" style="padding:0 0 8px"><h2>People</h2><span class="sub" id="nearbySub">Drop a file on someone to send it</span></div>
       <div class="people" id="people"></div>
     </section>
 
@@ -204,6 +230,43 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
       <button type="button" class="mic" id="mic" title="Dictate" aria-label="Dictate"></button>
       <button class="go" type="submit" aria-label="Go"></button>
     </form>
+    </div>
+
+    <div class="view settings hidden" id="settings">
+      <section class="tile" id="sec-devices">
+        <h2>Your devices</h2>
+        <p>Mark the headphones and speakers that are yours. Then anyone in your contacts who uses Redtooth can ask for them by name — “connect to <span class="me-first">your</span>’s headphones” — and their Redtooth knows exactly which pair you mean, even before they’re paired. Nothing is shared until you mark it.</p>
+        <div id="myDevices"><div class="note">Loading…</div></div>
+      </section>
+
+      <section class="tile" id="sec-contacts">
+        <h2>Contacts <span class="sub" id="contactCount"></span></h2>
+        <p>Redtooth uses your contacts to work out who you mean. They stay on this computer; only scrambled (hashed) phone numbers are sent to the directory to find who uses Redtooth.</p>
+        <div class="found" id="contactsFound"></div>
+        <div class="drop" id="contactsDrop">Drop a contacts file here<br>or <label>choose a file<input type="file" id="contactsFile" accept=".vcf,.vcard,.csv,.json,text/vcard,text/csv" hidden></label> (.vcf or .csv)</div>
+        <div class="how">
+          <div><b>iPhone</b><span>On <a href="https://www.icloud.com/contacts/" target="_blank" rel="noopener">icloud.com/contacts</a>, select all, then Export vCard</span></div>
+          <div><b>Android</b><span>Contacts app › Fix &amp; manage › Export to file</span></div>
+          <div><b>Google</b><span><a href="https://contacts.google.com/" target="_blank" rel="noopener">contacts.google.com</a> › Export › vCard</span></div>
+          <div><b>Outlook</b><span>Read automatically if Outlook is installed; otherwise <a href="https://outlook.live.com/people/" target="_blank" rel="noopener">People</a> › Manage › Export</span></div>
+        </div>
+        <form class="stack" id="contactsAdd" autocomplete="off">
+          <div class="field"><label for="cName">Add someone</label><input class="input" id="cName" name="name" placeholder="Name"></div>
+          <input class="input" type="tel" name="phone" placeholder="Phone number" aria-label="Phone number">
+          <button class="pill tint" type="submit" style="align-self:flex-start">Add contact</button>
+        </form>
+        <div class="field"><label for="countrySel">Numbers saved without a country code are</label><select id="countrySel"></select></div>
+        <div class="note" id="contactsNote" role="status"></div>
+      </section>
+
+      <section class="tile" id="sec-app">
+        <h2>Redtooth</h2>
+        <div class="toggle" style="border-top:0"><span>Start when I sign in</span><button class="sw" id="autostartSw" aria-label="Start when I sign in"></button></div>
+        <div class="toggle"><span>Bluetooth check</span><button class="pill" id="doctorBtn">Run</button></div>
+        <pre class="note" id="doctorOut" style="white-space:pre-wrap;font:11px ui-monospace,Consolas,monospace;max-height:220px;overflow:auto" hidden></pre>
+        <p id="directoryInfo"></p>
+      </section>
+    </div>
   </main>
 
   <aside class="side" id="side">
@@ -243,6 +306,8 @@ const I = {
   builtin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
   send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
   x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7 7 17"/></svg>',
 };
 const $ = s => document.querySelector(s);
@@ -260,7 +325,7 @@ const api = {
   live: true,
   async get(p){ const r = await fetch(p); if(!r.ok) throw new Error(r.status); return r.json(); },
   async post(p, b){ const r = await fetch(p,{method:'POST',headers:{'Content-Type':'application/json','X-Redtooth':'1'},body:JSON.stringify(b||{})}); return r.json(); },
-  events(fn){ const es = new EventSource('/api/events'); ['transfer','incoming','peer_incoming','peer_nudge','status','state','reply','selected','index'].forEach(k=>es.addEventListener(k,e=>fn(k,JSON.parse(e.data)))); },
+  events(fn){ const es = new EventSource('/api/events'); ['transfer','incoming','peer_incoming','peer_nudge','status','state','reply','selected','index','navigate'].forEach(k=>es.addEventListener(k,e=>fn(k,JSON.parse(e.data)))); },
 };
 
 // ---------------------------------------------------------------- state
@@ -268,28 +333,53 @@ let S = null; const transfers = new Map(); let lastStatus = null;
 
 function renderAudio(){
   const out = S.audio_output, dev = out.device;
+  const borrowed = d => d && d.owner_name && d.owner_name !== S.me.name ? d.owner_name.split(' ')[0] : null;
   $('#outIcon').innerHTML = kindIcon(dev ? dev.kind : 'builtin');
-  $('#outName').textContent = dev ? ((dev.owner_name && dev.owner_name !== S.me.name ? dev.owner_name.split(' ')[0] + '’s ' : '') + dev.label) : out.name;
+  $('#outName').textContent = dev ? ((borrowed(dev) ? borrowed(dev) + '’s ' : '') + dev.label) : out.name;
   const st = $('#outStatus');
-  if (lastStatus && ['Connecting','Searching'].includes(lastStatus.label)) st.innerHTML = `<i class="dot blue"></i><span>${esc(lastStatus.label)}</span>`;
-  else st.innerHTML = dev ? `<i class="dot green"></i><span>Connected${dev.owner_name && dev.owner_name !== S.me.name ? ' · borrowed from ' + esc(dev.owner_name.split(' ')[0]) : ''}</span>` : `<i class="dot green"></i><span>This computer</span>`;
+  if (lastStatus && ['Connecting','Searching','Scanning'].includes(lastStatus.label)) st.innerHTML = `<i class="dot blue"></i><span>${esc(lastStatus.detail || lastStatus.label)}</span>`;
+  else st.innerHTML = dev ? `<i class="dot green"></i><span>Bluetooth${borrowed(dev) ? ' · borrowed from ' + esc(borrowed(dev)) : ''}</span>` : `<i class="dot green"></i><span>This computer</span>`;
+  // Radio
+  const rb = $('#radioBanner');
+  const radio = S.radio || 'on';
+  rb.classList.toggle('hidden', radio === 'on' || radio === 'unknown');
+  rb.textContent = radio === 'missing' ? 'This computer has no Bluetooth adapter Redtooth can use.' : 'Bluetooth is off. Turn it on in Quick Settings (Win + A) to connect headphones.';
+  // Your audio devices: the true state from Windows, one action each.
   const list = $('#audioList');
-  const devs = S.audio_devices.filter(d => !d.active).slice(0, 4);
+  const devs = S.audio_devices.filter(d => !d.active && d.paired).slice(0, 6);
   list.innerHTML = devs.map(d => {
-    const owner = d.owner_name && d.owner_name !== S.me.name ? d.owner_name.split(' ')[0] + '’s · ' : '';
-    const mine = d.paired && (!d.owner_name || d.owner_name === S.me.name);
-    const state = d.connected ? 'Connected' : d.paired ? 'Paired' : d.discoverable ? 'Nearby · pairing mode' : 'Remembered';
-    return `<div class="item row"><div class="icon sm">${kindIcon(d.kind)}</div>
-      <div class="grow"><div class="ellipsis" style="font-weight:500">${esc(d.label)}</div><div class="sub ellipsis">${esc(owner + state)}</div></div>
-      ${mine && !(S.shared||[]).includes(d.id) ? `<button class="pill ghost" data-share="${esc(d.id)}" title="Let your contacts connect to these by asking for them">Share</button>` : ''}
-      <button class="pill" data-connect="${esc(d.id)}">Connect</button></div>`;
+    const who = borrowed(d) ? borrowed(d) + '’s · ' : '';
+    const state = d.connected ? '<i class="dot green"></i>Connected' : '<i class="dot"></i>Not connected';
+    const action = d.connected ? `<button class="pill" data-connect="${esc(d.id)}" title="Play audio through ${esc(d.label)}">Use</button><button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button>`
+                               : `<button class="pill" data-connect="${esc(d.id)}">Connect</button>`;
+    return `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
+      <div class="grow"><div class="ellipsis nm">${esc(d.label)}</div><div class="sub state">${esc(who)}${state}</div></div>${action}</div>`;
   }).join('');
   list.classList.toggle('hidden', !devs.length);
+  renderNearby();
+}
+
+let scanning = false;
+function renderNearby(){
+  const el = $('#nearbyList'), hint = $('#scanHint'), btn = $('#scanBtn');
+  const found = (S.nearby_devices || []);
+  btn.disabled = scanning || (S.radio && S.radio !== 'on' && S.radio !== 'unknown');
+  btn.textContent = scanning ? 'Scanning…' : found.length ? 'Scan again' : 'Add a device';
+  hint.innerHTML = scanning ? '<span class="state"><span class="spin"></span>Put the device in pairing mode (usually: hold the power button until the light flashes)</span>'
+    : found.length ? `${found.length} found nearby` : '';
+  el.innerHTML = found.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
+      <div class="grow"><div class="ellipsis nm">${esc(d.name)}</div><div class="sub">${d.kind==='other'?'Device':esc(d.kind[0].toUpperCase()+d.kind.slice(1))} · ${(d.rssi ?? -99) > -65 ? 'close by' : 'in range'}</div></div>
+      <button class="pill tint" data-pair="${esc(d.id)}">Pair</button></div>`).join('');
+  el.classList.toggle('hidden', !found.length);
+}
+async function scan(){
+  scanning = true; renderNearby();
+  try { await api.post('/api/scan',{seconds:8}); } finally { scanning = false; await refresh(); }
 }
 
 function renderPeople(){
   const el = $('#people');
-  if (!S.people.length){ el.innerHTML = '<div class="empty" style="grid-column:1/-1">No one nearby yet</div>'; return; }
+  if (!S.people.length){ el.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:14px 0">No one who uses Redtooth is nearby yet</div>'; return; }
   el.innerHTML = S.people.map(p => {
     const devs = p.devices.filter(d => ['phone','laptop','tablet','desktop'].includes(d.kind)).map(d => d.model || d.kind);
     return `<button class="person" data-person="${esc(p.id)}" title="Send a file to ${esc(p.name)}">
@@ -336,26 +426,57 @@ function renderIndexing(st){
 
 function render(){ renderAudio(); renderPeople(); renderSelected(); renderDemo(); renderIndexing(S.indexing); }
 
-// ---------------------------------------------------------------- contacts
-let C = null, contactsOpen = null;
-async function loadContacts(){ try { C = await api.get('/api/contacts'); } catch { C = null; } renderContacts(); }
-function renderContacts(){
-  const tile = $('#contactsTile');
-  if (!C || !C.managed){ tile.classList.add('hidden'); return; }
-  const show = contactsOpen ?? (C.count === 0);
-  tile.classList.toggle('hidden', !show);
-  $('#contactsTile h2').textContent = C.count ? `Contacts · ${C.count}` : 'Add your contacts';
-  $('#contactsClose').textContent = C.count ? 'Done' : 'Later';
-  renderCountry();
-  $('#contactsFound').innerHTML = (C.exports||[]).map(x => `<button class="pill" data-import-path="${esc(x.path)}">Import ${esc(x.name)} · ${x.count} ${x.count===1?'person':'people'}</button>`).join('');
-  $('#nearbySub').innerHTML = C.count ? `Drop a file on someone to send it · <button id="contactsOpen">${C.count} ${C.count===1?'contact':'contacts'}</button>` : `<button id="contactsOpen">Add contacts</button>`;
+// ---------------------------------------------------------------- settings view
+function showView(name, section){
+  const settings = name === 'settings';
+  $('#home').classList.toggle('hidden', settings);
+  $('#settings').classList.toggle('hidden', !settings);
+  $('#title').textContent = settings ? 'Settings' : 'Redtooth';
+  $('#openSettings').innerHTML = settings ? I.back : I.gear;
+  $('#openSettings').title = settings ? 'Back' : 'Settings';
+  if (settings){ loadMyDevices(); loadContacts(); loadApp(); if (section) document.getElementById('sec-' + section)?.scrollIntoView({block:'start'}); }
 }
-let countries = null;
-async function renderCountry(){
-  const sel = $('#countrySel'); if (!C || !C.country) return;
+function go(to){
+  if (to === 'scan'){ showView('home'); scan(); }
+  else if (to === 'settings') showView('settings');
+  else if (to.startsWith('settings-')) showView('settings', to.slice(9));
+  else showView('home');
+  history.replaceState(null, '', '/');
+}
+$('#openSettings').onclick = () => showView($('#settings').classList.contains('hidden') ? 'settings' : 'home');
+
+// Your devices: mark as yours + what friends call them
+async function loadMyDevices(){
+  const r = await api.get('/api/my-devices');
+  document.querySelectorAll('.me-first').forEach(e => e.textContent = r.me);
+  const el = $('#myDevices');
+  const devs = r.devices.filter(d => ['headphones','earbuds','speaker'].includes(d.kind) || d.mine);
+  if (!devs.length){ el.innerHTML = '<div class="note">No headphones or speakers are paired with this computer yet. Use “Add a device” on the main screen first.</div>'; return; }
+  el.innerHTML = devs.map(d => `<div class="mine" data-dev="${esc(d.id)}">
+      <div class="head"><div class="icon sm">${kindIcon(d.kind)}</div>
+        <div class="grow"><div class="ellipsis nm">${esc(d.model || d.name)}</div><div class="sub">${d.mine ? 'Yours · contacts can ask for it' : 'Not marked'}</div></div>
+        <button class="sw ${d.mine?'on':''}" data-mine="${esc(d.id)}" aria-label="These are mine"></button></div>
+      <div class="alias ${d.mine?'':'hidden'}"><input class="input" data-alias="${esc(d.id)}" placeholder="${esc(r.me)}’s ${esc(d.kind==='speaker'?'speaker':'headphones')}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button></div>
+    </div>`).join('');
+}
+async function setMine(id, mine, alias){
+  const r = await api.post('/api/my-devices',{device_id:id, mine, alias});
+  if (!r.ok){ alert(r.error); return; }
+  loadMyDevices(); refresh();
+}
+
+// Contacts
+let C = null, countries = null;
+async function loadContacts(){
+  try { C = await api.get('/api/contacts'); } catch { C = null; }
+  $('#contactsBanner').classList.toggle('hidden', !C || !C.managed || C.count > 0);
+  $('#sec-contacts').classList.toggle('hidden', !C || !C.managed);
+  if (!C || !C.managed) return;
+  $('#contactCount').textContent = C.count ? `· ${C.count}` : '';
+  $('#contactsFound').innerHTML = (C.exports||[]).map(x => `<button class="pill" data-import-path="${esc(x.path)}">Import ${esc(x.name)} · ${x.count} ${x.count===1?'person':'people'}</button>`).join('');
+  const sel = $('#countrySel');
   if (!countries){ countries = await api.get('/api/countries'); sel.innerHTML = countries.map(c => `<option value="${c.iso}">${c.flag} ${esc(c.name)} (+${c.cc})</option>`).join(''); }
-  sel.value = C.country.iso;
-  $('#contactsAdd [name=phone]').placeholder = `Phone (${C.country.flag} +${C.country.cc})`;
+  if (C.country){ sel.value = C.country.iso; $('#contactsAdd [name=phone]').placeholder = `Phone number (+${C.country.cc} unless you type another)`; }
 }
 $('#countrySel').addEventListener('change', async e => {
   contactsNote('Updating numbers…');
@@ -384,6 +505,24 @@ const cdrop = $('#contactsDrop');
 cdrop.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); cdrop.classList.add('over'); });
 cdrop.addEventListener('dragleave', () => cdrop.classList.remove('over'));
 cdrop.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); cdrop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) importContacts(f); });
+
+// App settings
+async function loadApp(){
+  try {
+    const a = await api.get('/api/app');
+    $('#autostartSw').classList.toggle('on', !!a.autostart);
+    $('#autostartSw').parentElement.classList.toggle('hidden', !a.autostart_supported);
+    $('#directoryInfo').classList.toggle('hidden', !a.directory_url);
+    $('#directoryInfo').innerHTML = a.directory_hosted
+      ? `This computer hosts your group’s directory at <b>${esc(a.directory_url)}</b>. On another device, run setup with that address.`
+      : `Directory: ${esc(a.directory_url || '')}`;
+  } catch {}
+}
+$('#autostartSw').onclick = async () => { const on = !$('#autostartSw').classList.contains('on'); const r = await api.post('/api/app',{autostart:on}); $('#autostartSw').classList.toggle('on', !!r.autostart); };
+$('#doctorBtn').onclick = async () => {
+  const out = $('#doctorOut'); out.hidden = false; out.textContent = 'Checking Bluetooth and audio (about 10 seconds)…';
+  try { const r = await api.post('/api/doctor'); out.textContent = r.text; } catch (e) { out.textContent = String(e); }
+};
 
 // ---------------------------------------------------------------- feed
 const feed = $('#feed');
@@ -455,15 +594,18 @@ document.addEventListener('click', async e => {
   if (b.dataset.q){ b.closest('.opts').querySelectorAll('button').forEach(x=>x.disabled=true); userMsg(b.querySelector('b').textContent); const r = await api.post('/api/answer',{question_id:b.dataset.q, option_id:b.dataset.o}); replyMsg(r); refresh(); }
   else if (b.dataset.connect){ b.disabled = true; b.textContent='Connecting'; const r = await api.post('/api/connect',{device_id:b.dataset.connect}); replyMsg(r); refresh(); }
   else if (b.dataset.person){ const r = await api.post('/api/send',{person_id:b.dataset.person}); replyMsg(r); refresh(); }
-  else if (b.dataset.share){ await api.post('/api/my-devices/register',{device_id:b.dataset.share}); replyMsg({ok:true,text:'Shared. Your contacts can now ask to connect to these, and Redtooth will find them by name.',timings:{}}); refresh(); }
+  else if (b.dataset.disconnect){ b.disabled = true; b.textContent='Disconnecting'; const r = await api.post('/api/disconnect',{device_id:b.dataset.disconnect}); replyMsg(r); refresh(); }
+  else if (b.dataset.pair){ b.disabled = true; b.textContent='Pairing'; const r = await api.post('/api/pair',{device_id:b.dataset.pair}); replyMsg(r); refresh(); }
+  else if (b.id === 'scanBtn'){ scan(); }
+  else if (b.dataset.goto){ showView('settings', b.dataset.goto); }
+  else if (b.dataset.mine){ const on = !b.classList.contains('on'); b.classList.toggle('on', on); setMine(b.dataset.mine, on, on ? (document.querySelector(`[data-alias="${CSS.escape(b.dataset.mine)}"]`)?.value || '') : null); }
+  else if (b.dataset.saveAlias){ setMine(b.dataset.saveAlias, true, document.querySelector(`[data-alias="${CSS.escape(b.dataset.saveAlias)}"]`).value); }
   else if (b.dataset.cancel){ api.post('/api/cancel',{transfer_id:b.dataset.cancel}); }
   else if (b.dataset.file){ const r = await api.post('/api/select',{path:b.dataset.file}); replyMsg(r); refresh(); }
   else if (b.dataset.peer){ api.post('/api/demo/peer-accept',{id:b.dataset.peer, accept:b.dataset.accept==='1'}); }
   else if (b.dataset.incoming){ api.post('/api/incoming/'+b.dataset.incoming,{accept:b.dataset.accept==='1'}); }
   else if (b.dataset.chip){ ask(b.dataset.chip); }
   else if (b.dataset.importPath){ b.disabled = true; contactsNote('Importing…'); afterContacts(await api.post('/api/contacts/import',{path:b.dataset.importPath})); }
-  else if (b.id === 'contactsOpen'){ contactsOpen = true; renderContacts(); }
-  else if (b.id === 'contactsClose'){ contactsOpen = false; renderContacts(); }
 });
 $('#askForm').addEventListener('submit', e => { e.preventDefault(); const v = $('#ask').value; $('#ask').value=''; ask(v); });
 
@@ -473,7 +615,7 @@ document.addEventListener('dragleave', e => { const p = e.target.closest('.perso
 document.addEventListener('dragover', e => { if (!e.target.closest('.person')) e.preventDefault(); });
 document.addEventListener('drop', async e => {
   const p = e.target.closest('.person');
-  if (!p){ e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && /\.(vcf|vcard|csv)$/i.test(f.name) && C && C.managed){ contactsOpen = true; renderContacts(); importContacts(f); } return; }
+  if (!p){ e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && /\.(vcf|vcard|csv)$/i.test(f.name) && C && C.managed){ showView('settings','contacts'); importContacts(f); } return; }
   e.preventDefault(); p.classList.remove('drop');
   const f = e.dataTransfer.files[0]; if (!f) return;
   const fd = new FormData(); fd.append('file', f);
@@ -533,11 +675,14 @@ function onEvent(kind, d){
   }
   else if (kind === 'selected'){ refresh(); }
   else if (kind === 'index'){ if (S) S.indexing = d; renderIndexing(d); }
+  else if (kind === 'navigate'){ go(d.to); }
 }
 
 (async () => {
+  showView('home');
   await refresh();
   loadContacts();
+  if (location.hash) go(location.hash.slice(1));
   api.events(onEvent);
   const share = new URLSearchParams(location.search).get('share');
   if (share){ const r = await api.post('/api/select',{path:share}); replyMsg(r); refresh(); history.replaceState(null,'','/'); }

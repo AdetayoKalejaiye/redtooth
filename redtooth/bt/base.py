@@ -120,6 +120,19 @@ class BluetoothPlatform(ABC):
         """Form a Wi-Fi Direct group with a peer; return the peer's IP on it."""
         return None
 
+    async def radio_state(self) -> str:
+        """on | off | missing | unknown"""
+        return "on"
+
+    async def diagnose(self) -> dict:
+        """What this backend sees, for `redtooth doctor`."""
+        return {
+            "radio": await self.radio_state(),
+            "paired": [{"name": d.name, "address": d.address, "kind": d.kind, "connected": d.connected} for d in await self.paired()],
+            "audio_output": (await self.audio_output()).to_dict(),
+            "nearby": [{"name": d.name, "address": d.address, "kind": d.kind, "rssi": d.rssi} for d in await self.scan(6)],
+        }
+
 
 async def run(*cmd: str, timeout: float = 20.0) -> tuple[int, str]:
     """Run a command, return (exit code, combined output)."""
