@@ -167,6 +167,12 @@ async def cmd_serve(args, set_status=None) -> None:
     roots = [Path(r).expanduser() for r in cfg.get("roots", [])] or default_roots()
     index = FileIndex(HOME / "index.db", load_embedder(args.embedder))
     print(f"Search: {index.embedder.name}", flush=True)
+    if sys.platform.startswith("win"):
+        from .bt.windows import install_command, missing_packages
+
+        miss = missing_packages()
+        if miss:
+            print(f"\nMissing for this Python ({sys.executable}): {', '.join(miss)}\nFix with:\n  {install_command()}\n", flush=True)
     store = Store(HOME / "state.db")
     agent = Agent(me, book, directory, detect_platform(), index, store)
     agent.shared_devices = [Device.from_dict(d) for d in cfg.get("shared_devices", [])]
