@@ -76,6 +76,11 @@ class Agent:
         self.busy = label
         self.bus.publish("status", {"label": label, "detail": detail})
 
+    def set_contacts(self, book) -> None:
+        """Swap in a new contact book (after an import) without restarting."""
+        self.book = book
+        self.people.book = book
+
     def known_names(self) -> list[str]:
         names = []
         for c in self.book.contacts:
@@ -230,6 +235,9 @@ class Agent:
             await self.refresh_people()
         cands = self.people.resolve(intent.person, intent.relation)
         if not cands:
+            if not self.book.contacts:
+                return None, Reply(f"I don't have your contacts yet, so I don't know who “{intent.person.title()}” is. "
+                                   "Use Add contacts in the panel.", ok=False)
             return None, Reply(f"I couldn't find “{intent.person.title()}” in your contacts.", ok=False)
         if cands[0].person.is_self:
             return self.me, None

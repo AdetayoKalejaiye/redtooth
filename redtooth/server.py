@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import sys
 import os
 from pathlib import Path
 from typing import Optional
@@ -28,7 +30,7 @@ async def guard(request: web.Request, handler):
     return await handler(request)
 
 
-def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, extra_routes=None) -> web.Application:
+def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, extra_routes=None, contacts=None) -> web.Application:
     app = web.Application(middlewares=[guard], client_max_size=4 * 1024**3)
     r = web.RouteTableDef()
     incoming: dict[str, dict] = {}
@@ -123,6 +125,63 @@ def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, ext
         agent.bus.publish("state", await agent.state())
         return web.json_response({"ok": True})
 
+    @r.get("/api/contacts")
+    async def contacts_status(request):
+        if not contacts:
+            return web.json_response({"count": len(agent.book.contacts), "managed": False})
+        return web.json_response(await asyncio.get_running_loop().run_in_executor(None, contacts.status))
+
+    @r.post("/api/contacts/import")
+    async def contacts_import(request):
+        if not contacts:
+            raise web.HTTPNotFound()
+        try:
+            if request.content_type.startswith("multipart/"):
+                reader = await request.multipart()
+                part = await reader.next()
+                data = await part.read(decode=False)
+                added = contacts.import_bytes(part.filename or "contacts.vcf", bytes(data))
+            else:
+                added = contacts.import_path(str((await body(request)).get("path", "")))
+        except Exception as e:
+            return web.json_response({"ok": False, "error": f"Couldn't read that file: {e}"})
+        await agent.refresh_people()
+        agent.bus.publish("state", await agent.state())
+        return web.json_response({"ok": True, "added": added, "count": len(agent.book.contacts)})
+
+    @r.get("/api/countries")
+    async def countries(request):
+        from .phones import COUNTRIES, flag
+
+        return web.json_response([{"iso": c.iso, "name": c.name, "cc": c.cc, "flag": flag(c.iso)} for c in sorted(COUNTRIES, key=lambda c: c.name)])
+
+    @r.post("/api/settings/country")
+    async def set_country(request):
+        if not contacts:
+            raise web.HTTPNotFound()
+        from .phones import BY_ISO
+
+        iso = str((await body(request)).get("country", "")).upper()
+        if iso not in BY_ISO:
+            return web.json_response({"ok": False, "error": "Unknown country."})
+        await asyncio.get_running_loop().run_in_executor(None, contacts.set_country, iso)
+        await agent.refresh_people()
+        agent.bus.publish("state", await agent.state())
+        return web.json_response({"ok": True, "country": iso, "count": len(agent.book.contacts)})
+
+    @r.post("/api/contacts/add")
+    async def contacts_add(request):
+        if not contacts:
+            raise web.HTTPNotFound()
+        b = await body(request)
+        name, phone = str(b.get("name", "")).strip(), str(b.get("phone", "")).strip()
+        if not name or sum(ch.isdigit() for ch in phone) < 5:
+            return web.json_response({"ok": False, "error": "Enter a name and a phone number."})
+        contacts.add(name, phone)
+        await agent.refresh_people()
+        agent.bus.publish("state", await agent.state())
+        return web.json_response({"ok": True, "count": len(agent.book.contacts)})
+
     @r.get("/api/metrics")
     async def metrics(request):
         return web.json_response(agent.metrics.summary())
@@ -192,10 +251,103 @@ def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, ext
     return app
 
 
-def wire_incoming(agent: Agent):
-    """Event sink for this device's own Receiver."""
+def wire_incoming(agent: Agent, contacts=None):
+    """Event sink for this device's own Receiver. A contacts file sent from your own phone is imported."""
 
     def emit(kind: str, data: dict) -> None:
         agent.bus.publish(kind, data)
+        if (contacts and kind == "incoming" and data.get("status") == "saved" and data.get("sender_phone") == agent.me.phone
+                and str(data.get("name", "")).lower().endswith((".vcf", ".vcard"))):
+            try:
+                added = contacts.import_path(data["saved_path"])
+                agent.bus.publish("reply", {"ok": True, "text": f"Imported contacts from your phone ({added} new).", "timings": {}})
+                asyncio.get_running_loop().create_task(agent.refresh_people())
+            except Exception as e:
+                logging.getLogger("redtooth").warning("contacts from phone: %s", e)
 
     return emit
+
+
+class ContactsService:
+    """Imports into Redtooth's contact store and swaps the agent's book live."""
+
+    def __init__(self, agent: Agent, store, extra_files=(), outlook: bool = True):
+        from .contacts import ContactBook
+
+        self.agent, self.store, self.extra_files = agent, store, list(extra_files)
+        self.outlook = outlook
+        self._outlook_book = ContactBook()
+        self._exports: tuple[float, list] = (0.0, [])
+
+    def load(self) -> None:
+        """Build the full book. Outlook (Windows) is read once here; it can take a few seconds."""
+        from .contacts import ContactBook, load_all
+
+        book = load_all(self.store, self.extra_files, outlook=False)
+        if self.outlook and sys.platform.startswith("win"):
+            self._outlook_book = ContactBook.from_outlook()
+        book.merge(self._outlook_book)
+        self.agent.set_contacts(book)
+
+    def _reload(self) -> None:
+        from .contacts import load_all
+
+        book = load_all(self.store, self.extra_files, outlook=False)
+        book.merge(self._outlook_book)
+        self.agent.set_contacts(book)
+
+    def import_book(self, book) -> int:
+        own = self.store.load()
+        added = own.merge(book)
+        self.store.save(own)
+        self._reload()
+        return added
+
+    def import_bytes(self, name: str, data: bytes) -> int:
+        from .contacts import ContactBook
+
+        book = ContactBook.from_bytes(name, data)
+        if not book.contacts:
+            raise ValueError("no contacts with phone numbers found")
+        return self.import_book(book)
+
+    def import_path(self, path: str) -> int:
+        from .contacts import ContactBook
+
+        p = Path(path).expanduser()
+        if not p.is_file():
+            raise FileNotFoundError(str(p))
+        return self.import_bytes(p.name, p.read_bytes()) if p.suffix.lower() != ".json" else self.import_book(ContactBook.from_file(p))
+
+    def add(self, name: str, phone: str) -> None:
+        from .contacts import ContactBook
+        from .models import Contact
+        from .util import new_id, normalize_phone
+
+        self.import_book(ContactBook([Contact(new_id("c_"), name, [normalize_phone(phone)])]))
+
+    on_country = None  # callback to persist the setting
+
+    def set_country(self, iso: str) -> str:
+        """Re-read every number that was written without a country code."""
+        from .phones import set_country
+
+        iso = set_country(iso)
+        if self.on_country:
+            self.on_country(iso)
+        self.load()
+        return iso
+
+    def status(self) -> dict:
+        import time
+
+        from .contacts import find_exports
+        from .phones import current_country, flag
+
+        n = len(self.agent.book.contacts)
+        if not n and time.time() - self._exports[0] > 30:
+            self._exports = (time.time(), find_exports())
+        c = current_country()
+        return {"count": n, "managed": True, "exports": [] if n else self._exports[1],
+                "country": {"iso": c.iso, "name": c.name, "cc": c.cc, "flag": flag(c.iso)},
+                "platform": sys.platform, "with_app": len(self.agent.people.profiles)}

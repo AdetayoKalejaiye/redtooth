@@ -84,7 +84,7 @@ def _h(phone: str) -> str:
     return phone_hash(phone)
 
 
-async def build_demo(root: Optional[str] = None, daniel_auto_accept: float = 2.5, embedder: str = "auto", radio_delay: float = 0.15) -> DemoWorld:
+async def build_demo(root: Optional[str] = None, daniel_auto_accept: float = 2.5, embedder: Optional[str] = None, radio_delay: float = 0.15) -> DemoWorld:
     root_p = Path(root or tempfile.mkdtemp(prefix="redtooth-demo-"))
     make_samples(root_p)
     directory = InMemoryDirectory()

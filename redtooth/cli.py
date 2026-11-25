@@ -118,6 +118,17 @@ async def cmd_serve(args) -> None:
     cfg = load_config()
     if not cfg.get("phone"):
         sys.exit("Run `redtooth setup` first.")
+    from .phones import country_for_phone, detect_country, set_country
+
+    set_country(cfg.get("country") or country_for_phone(cfg["phone"], prefer=detect_country()) or detect_country())
+    # File-menu entry points are part of the product: add them once, quietly (no admin needed).
+    if not args.no_integrations and cfg.get("integrations") not in ("installed", "removed"):
+        try:
+            cmd_install(args)
+            cfg["integrations"] = "installed"
+            save_config(cfg)
+        except Exception as e:
+            logging.warning("couldn't add file-menu entries: %s", e)
     extra = None
     if args.host_directory:
         state = InMemoryDirectory()
@@ -127,18 +138,28 @@ async def cmd_serve(args) -> None:
     else:
         directory = HTTPDirectory(cfg["directory"], cfg.get("token"))
 
+    from .contacts import ContactStore
+    from .server import ContactsService
+
+    extra_contacts = cfg.get("contacts")
+    extra_contacts = [extra_contacts] if isinstance(extra_contacts, str) else (extra_contacts or [])
     book = ContactBook()
-    if cfg.get("contacts"):
-        p = Path(cfg["contacts"]).expanduser()
-        book = ContactBook.from_vcard(p) if p.suffix == ".vcf" else ContactBook.from_json(p)
-    elif sys.platform == "darwin":
-        book = ContactBook.from_macos()
     me = Person(Contact("c_me", cfg["name"], [cfg["phone"]]), is_self=True)
     roots = [Path(r).expanduser() for r in cfg.get("roots", [])] or default_roots()
-    index = FileIndex(HOME / "index.db", load_embedder())
+    index = FileIndex(HOME / "index.db", load_embedder(args.embedder))
+    print(f"Search: {index.embedder.name}", flush=True)
     store = Store(HOME / "state.db")
     agent = Agent(me, book, directory, detect_platform(), index, store)
     agent.shared_devices = [Device.from_dict(d) for d in cfg.get("shared_devices", [])]
+    contacts = ContactsService(agent, ContactStore(HOME / "contacts.json"), extra_contacts)
+
+    def save_country(iso: str) -> None:
+        cfg["country"] = iso
+        save_config(cfg)
+
+    contacts.on_country = save_country
+    await asyncio.get_running_loop().run_in_executor(None, contacts.load)
+    print(f"Contacts: {len(agent.book.contacts)}" + ("" if agent.book.contacts else " (add them in the panel)"), flush=True)
 
     def persist_shared() -> None:
         cfg["shared_devices"] = [d.to_dict() for d in agent.shared_devices]
@@ -149,7 +170,7 @@ async def cmd_serve(args) -> None:
     # Always listening for incoming files; accept from a notification or the panel.
     broker = AcceptBroker(native=True, auto_accept=lambda o: o.sender_phone == cfg["phone"])
     this = Device(cfg.setdefault("device_id", f"dev_{socket.gethostname()}"), cfg.get("device_name") or socket.gethostname(), cfg.get("device_kind", "laptop"), has_app=True, wifi_direct=agent.bt.wifi_direct)
-    rx = Receiver(this, Path(cfg.get("inbox", Path.home() / "Downloads")).expanduser(), broker.ask, wire_incoming(agent))
+    rx = Receiver(this, Path(cfg.get("inbox", Path.home() / "Downloads")).expanduser(), broker.ask, wire_incoming(agent, contacts))
     port = await rx.start("0.0.0.0", args.transfer_port)
     this.endpoints = [Endpoint("lan", ip, port) for ip in lan_addresses()]
     save_config(cfg)
@@ -176,7 +197,7 @@ async def cmd_serve(args) -> None:
     indexer.start()
 
     asyncio.create_task(heartbeat())
-    await _run_app(make_app(agent, broker=broker, extra_routes=extra), args.port, args.open)
+    await _run_app(make_app(agent, broker=broker, extra_routes=extra, contacts=contacts), args.port, args.open)
 
 
 async def cmd_directory(args) -> None:
@@ -197,18 +218,85 @@ async def cmd_setup(args) -> None:
     from .directory import HTTPDirectory
     from .util import normalize_phone
 
+    from .phones import BY_ISO, country_for_phone, detect_country, flag, parse_country, set_country
+
     cfg = load_config()
     cfg["name"] = args.name or input("Your name: ").strip()
-    cfg["phone"] = normalize_phone(args.phone or input("Your phone number: ").strip())
+    guess = cfg.get("country") or detect_country()
+    country = parse_country(args.country, guess) if args.country else None
+    explicit = country is not None
+    while not country:
+        c = BY_ISO[guess]
+        answer = input(f"Country for phone numbers [{c.name} (+{c.cc}) — Enter to keep, or type a country or code]: ")
+        country = parse_country(answer, guess)
+        explicit = bool(answer.strip())
+        if not country:
+            print("  Didn't recognize that. Try a name (Germany), a code (DE) or a calling code (+49).")
+    set_country(country)
+    raw = args.phone or input(f"Your phone number ({flag(country)} +{BY_ISO[country].cc}, or include + for another country): ").strip()
+    cfg["phone"] = normalize_phone(raw)
+    # Accepted the detected region but typed a +44… number: they're more likely in the UK.
+    if not explicit and raw.strip().startswith(("+", "00")):
+        country = country_for_phone(cfg["phone"], prefer=country) or country
+    cfg["country"] = country
+    set_country(country)
+    print(f"Phone: {cfg['phone']} · numbers without a country code will be read as {BY_ISO[country].name} (+{BY_ISO[country].cc})")
     cfg["directory"] = args.directory
     d = HTTPDirectory(args.directory)
     await d.start_verification(cfg["phone"])
     code = args.code or input("Verification code: ").strip()
     cfg["token"] = await d.verify(cfg["phone"], code, cfg["name"])
-    if args.contacts:
-        cfg["contacts"] = args.contacts
     save_config(cfg)
     print(f"Registered {cfg['name']} ({cfg['phone']}).")
+    if args.contacts:
+        _import_contacts_cli(args.contacts)
+    else:
+        print("Next: `redtooth serve --open`, then Add contacts in the panel (drop a .vcf or .csv export).")
+
+
+def _import_contacts_cli(path: str) -> None:
+    from .contacts import ContactBook, ContactStore
+
+    p = Path(path).expanduser()
+    if not p.is_file():
+        print(f"Contacts file not found: {p}\nYou can add contacts later in the panel (Add contacts).")
+        return
+    try:
+        book = ContactBook.from_file(p)
+    except Exception as e:
+        print(f"Couldn't read {p.name}: {e}")
+        return
+    store = ContactStore(HOME / "contacts.json")
+    own = store.load()
+    added = own.merge(book)
+    store.save(own)
+    print(f"Imported {added} new contacts from {p.name} ({len(own.contacts)} total).")
+
+
+def cmd_contacts(args) -> None:
+    from .contacts import ContactStore
+    from .phones import detect_country, set_country
+
+    set_country(load_config().get("country") or detect_country())
+
+    if args.action == "import":
+        for f in args.files:
+            _import_contacts_cli(f)
+    elif args.action == "add":
+        from .contacts import ContactBook
+        from .models import Contact
+        from .util import new_id, normalize_phone
+
+        store = ContactStore(HOME / "contacts.json")
+        own = store.load()
+        own.merge(ContactBook([Contact(new_id("c_"), args.files[0], [normalize_phone(args.files[1])])]))
+        store.save(own)
+        print(f"Added {args.files[0]}.")
+    else:
+        for c in ContactStore(HOME / "contacts.json").load().contacts:
+            print(f"{c.name}  {', '.join(c.phones)}")
+    if args.action != "list":
+        print("If Redtooth is running, restart it to pick this up (imports in the panel apply immediately).")
 
 
 def cmd_share(args) -> None:
@@ -230,6 +318,19 @@ def cmd_ask(args) -> None:
 
 def cmd_install(args) -> None:
     exe = shutil.which("redtooth") or f'"{sys.executable}" -m redtooth.cli'
+    if getattr(args, "remove", False):
+        if sys.platform.startswith("win"):
+            (Path(os.environ["APPDATA"]) / "Microsoft/Windows/SendTo/Redtooth.cmd").unlink(missing_ok=True)
+            subprocess.run(["reg", "delete", r"HKCU\Software\Classes\*\shell\Redtooth", "/f"], check=False, capture_output=True)
+        else:
+            for f in (Path.home() / ".local/share/applications/redtooth-share.desktop", Path.home() / ".local/share/applications/redtooth.desktop",
+                      Path.home() / ".local/share/nautilus/scripts/Send with Redtooth"):
+                f.unlink(missing_ok=True)
+        cfg = load_config()
+        cfg["integrations"] = "removed"
+        save_config(cfg)
+        print("Removed Redtooth from the file menus.")
+        return
     if sys.platform.startswith("win"):
         sendto = Path(os.environ["APPDATA"]) / "Microsoft/Windows/SendTo/Redtooth.cmd"
         sendto.write_text(f'@echo off\r\n{exe} share %1\r\n')
@@ -240,7 +341,7 @@ def cmd_install(args) -> None:
             "[HKEY_CURRENT_USER\\Software\\Classes\\*\\shell\\Redtooth]\r\n@=\"Send with Redtooth\"\r\n\r\n"
             f"[HKEY_CURRENT_USER\\Software\\Classes\\*\\shell\\Redtooth\\command]\r\n@=\"{cmd} share \\\"%1\\\"\"\r\n"
         )
-        subprocess.run(["reg", "import", str(reg)], check=False)
+        subprocess.run(["reg", "import", str(reg)], check=False, capture_output=True)
         print(f"Added Send To › Redtooth and a 'Send with Redtooth' context-menu entry.")
     elif sys.platform == "darwin":
         print("Add a Quick Action: open Shortcuts › New Shortcut › 'Receive Files from Quick Actions / Share Sheet', "
@@ -275,19 +376,25 @@ def main(argv=None) -> None:
     p = sub.add_parser("demo")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p.add_argument("--root")
-    p.add_argument("--embedder", default="auto", choices=["auto", "e5", "hash"])
+    p.add_argument("--embedder", default=None, choices=["auto", "e5", "hash"])
     p.add_argument("--open", action="store_true")
     p = sub.add_parser("serve")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p.add_argument("--transfer-port", type=int, default=TRANSFER_PORT)
     p.add_argument("--host-directory", action="store_true")
+    p.add_argument("--embedder", default=None, choices=["auto", "e5", "hash"], help="search model (default: E5, downloaded on first run)")
+    p.add_argument("--no-integrations", action="store_true", help="don't add Send with Redtooth to the file menus")
     p.add_argument("--open", action="store_true")
     p = sub.add_parser("setup")
     p.add_argument("--name")
     p.add_argument("--phone")
     p.add_argument("--code")
-    p.add_argument("--contacts", help="contacts .json or .vcf")
+    p.add_argument("--contacts", help="optional: a contacts export (.vcf, .csv or .json) to import")
+    p.add_argument("--country", help="country for numbers without a country code (US, GB, +44, Germany…); default: this computer's region")
     p.add_argument("--directory", default=os.environ.get("REDTOOTH_DIRECTORY", "http://127.0.0.1:8790"))
+    p = sub.add_parser("contacts", help="import, add or list contacts (the panel does the same)")
+    p.add_argument("action", choices=["import", "add", "list"])
+    p.add_argument("files", nargs="*", help="import: files (.vcf/.csv/.json); add: NAME PHONE")
     p = sub.add_parser("panel")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p = sub.add_parser("share")
@@ -302,7 +409,8 @@ def main(argv=None) -> None:
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8790)
     p.add_argument("--open-register", action="store_true", help="skip phone verification (testing only)")
-    sub.add_parser("install-integrations")
+    p = sub.add_parser("install-integrations", help="add Send with Redtooth to the file menus (done automatically on first serve)")
+    p.add_argument("--remove", action="store_true")
     args = ap.parse_args(argv)
 
     if args.cmd == "demo":
@@ -315,6 +423,8 @@ def main(argv=None) -> None:
         asyncio.run(cmd_directory(args))
     elif args.cmd == "panel":
         open_panel(f"http://127.0.0.1:{args.port}/")
+    elif args.cmd == "contacts":
+        cmd_contacts(args)
     elif args.cmd == "share":
         cmd_share(args)
     elif args.cmd == "ask":

@@ -157,7 +157,7 @@ def print_report(title: str, summ: dict, results: list[dict], show_misses: bool 
 
 def run(argv=None) -> dict:
     ap = argparse.ArgumentParser(prog="redtooth eval", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--embedder", default="auto", choices=["auto", "e5", "hash"])
+    ap.add_argument("--embedder", default=None, choices=["auto", "e5", "hash"])
     ap.add_argument("--queries", help="your own queries JSON (default: bundled set)")
     ap.add_argument("--root", help="folder to index instead of the bundled corpus")
     ap.add_argument("--calibrate", action="store_true", help="grid-search ranking parameters")

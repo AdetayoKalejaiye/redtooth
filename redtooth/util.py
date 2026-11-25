@@ -3,36 +3,17 @@ from __future__ import annotations
 
 import hashlib
 import re
+from typing import Optional
 import time
 import uuid
 from datetime import datetime, timedelta
 
-DEFAULT_COUNTRY_CODE = "1"
+def normalize_phone(raw: str, country: Optional[str] = None) -> str:
+    """E.164 (+15550142000). Numbers without a country code are read as the user's country
+    (see phones.py; the phone apps use the same rules so lookups hash the same string)."""
+    from .phones import normalize
 
-
-def normalize_phone(raw: str, default_cc: str = DEFAULT_COUNTRY_CODE) -> str:
-    """Return an E.164-style number (+15550142). Good enough for matching;
-    swap in `phonenumbers` for full international parsing."""
-    if not raw:
-        return ""
-    try:  # optional, more accurate
-        import phonenumbers  # type: ignore
-
-        n = phonenumbers.parse(raw, None if raw.strip().startswith("+") else "US")
-        return phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
-    except Exception:
-        pass
-    plus = raw.strip().startswith("+")
-    digits = re.sub(r"\D", "", raw)
-    if plus:
-        return "+" + digits
-    if digits.startswith("00"):
-        return "+" + digits[2:]
-    if len(digits) == 10 and default_cc == "1":
-        return "+1" + digits
-    if len(digits) == 11 and digits.startswith("1") and default_cc == "1":
-        return "+" + digits
-    return "+" + default_cc + digits
+    return normalize(raw, country)
 
 
 def phone_hash(phone: str) -> str:
