@@ -61,6 +61,40 @@ def _warn_once(what: str, e: BaseException) -> None:
         log.warning("%s: %s: %s", what, type(e).__name__, e)
 
 
+WINDOWS_MODULES = {
+    "pycaw": "audio outputs and switching",
+    "comtypes": "audio outputs and switching",
+    "winrt.windows.devices.enumeration": "pairing without a prompt, Bluetooth LE devices",
+    "winrt.windows.devices.bluetooth": "pairing without a prompt, Bluetooth LE devices",
+    "winrt.windows.devices.radios": "Bluetooth on/off state",
+    "winrt.windows.media.devices": "reading the audio output (fallback)",
+    "win11toast": "Accept/Decline notifications",
+    "pystray": "tray icon",
+}
+
+
+def missing_packages() -> list[str]:
+    import importlib
+
+    out = []
+    for m in WINDOWS_MODULES:
+        try:
+            importlib.import_module(m)
+        except Exception:
+            out.append(m)
+    return out
+
+
+def install_command() -> str:
+    """The exact command that installs Redtooth's dependencies into *this* Python."""
+    from pathlib import Path
+    import sys
+
+    root = Path(__file__).resolve().parents[2]
+    target = f'-e "{root}"' if (root / "pyproject.toml").exists() else "redtooth"
+    return f'"{sys.executable}" -m pip install {target}'
+
+
 def _aqs(protocol: str, paired: bool, inquiry: bool = False) -> str:
     q = f'System.Devices.Aep.ProtocolId:="{protocol}" AND System.Devices.Aep.IsPaired:=System.StructuredQueryType.Boolean#{"True" if paired else "False"}'
     if inquiry:
@@ -259,9 +293,18 @@ class WindowsBluetooth(BluetoothPlatform):
     name = "windows"
 
     def __init__(self) -> None:
+        from .win32bt import Win32Bluetooth
+
+        try:
+            self.w32: Optional[Win32Bluetooth] = Win32Bluetooth()
+        except Exception as e:
+            _warn_once("classic Bluetooth API", e)
+            self.w32 = None
         self.com = _Com()
         self._aep: dict[str, str] = {}  # address -> association endpoint id (for pairing and status)
         self._paired_cache: tuple[float, list[Device]] = (0.0, [])
+        self._radio_cache: tuple[float, str] = (0.0, "unknown")
+        self._winrt_hangs: set[str] = set()  # WinRT calls that timed out once aren't retried (keeps the panel fast)
         try:
             import winrt.windows.devices.wifidirect  # noqa: F401
 
@@ -269,20 +312,42 @@ class WindowsBluetooth(BluetoothPlatform):
         except Exception:
             self.wifi_direct = False
 
+    def setup_issue(self) -> Optional[str]:
+        miss = missing_packages()
+        if not miss:
+            return None
+        what = sorted({WINDOWS_MODULES[m] for m in miss})
+        return f"Some parts aren't installed for this Python ({'; '.join(what)}). Run: {install_command()}"
+
     # ------------------------------------------------------------- radio
     async def radio_state(self) -> str:
+        if time.monotonic() - self._radio_cache[0] < 10:
+            return self._radio_cache[1]
+        state = await self._radio_state()
+        self._radio_cache = (time.monotonic(), state)
+        return state
+
+    async def _radio_state(self) -> str:
+        if self.w32 and "radio" in self._winrt_hangs:
+            return "on" if await asyncio.get_running_loop().run_in_executor(None, self.w32.has_radio) else "off"
         try:
             from winrt.windows.devices.bluetooth import BluetoothAdapter
             from winrt.windows.devices.radios import RadioState
 
-            adapter = await BluetoothAdapter.get_default_async()
+            adapter = await asyncio.wait_for(BluetoothAdapter.get_default_async(), 4)
             if adapter is None:
                 return "missing"
-            radio = await adapter.get_radio_async()
+            radio = await asyncio.wait_for(adapter.get_radio_async(), 4)
             return {RadioState.ON: "on", RadioState.OFF: "off", RadioState.DISABLED: "off"}.get(radio.state, "unknown")
+        except ImportError:
+            pass
         except Exception as e:
-            _warn_once("Bluetooth radio", e)
-            return "unknown"
+            if isinstance(e, asyncio.TimeoutError):
+                self._winrt_hangs.add("radio")
+            _warn_once("Bluetooth radio (WinRT)", e)
+        if self.w32:
+            return "on" if await asyncio.get_running_loop().run_in_executor(None, self.w32.has_radio) else "off"
+        return "unknown"
 
     # ------------------------------------------------------------- devices
     def _device(self, info, source: str) -> Optional[Device]:
@@ -300,41 +365,78 @@ class WindowsBluetooth(BluetoothPlatform):
         d.present = _prop(info, "System.Devices.Aep.IsPresent")
         return enrich(d)
 
-    async def paired(self) -> list[Device]:
-        # The panel and the agent ask often; Windows answers in tens of ms, but don't hammer it.
-        if time.monotonic() - self._paired_cache[0] < 1.0:
-            return [Device.from_dict(d.to_dict()) for d in self._paired_cache[1]]
+    def _from_w32(self, b, source: str) -> Device:
+        from .win32bt import cod_kind
+
+        d = Device(id=f"bt:{b.address}", name=b.name or b.address, kind=cod_kind(b.cod) or "other", address=b.address,
+                   paired=b.paired, connected=b.connected, discoverable=source == "nearby", sources=[source])
+        return enrich(d)
+
+    async def _winrt_paired_le(self) -> list[Device]:
+        """Bluetooth LE devices paired with Windows (the classic API doesn't list them). Best effort."""
+        if "le" in self._winrt_hangs:
+            return []
         try:
             from winrt.windows.devices.enumeration import DeviceInformation, DeviceInformationKind
-        except Exception as e:
-            _warn_once("WinRT not available (pip install -e . again)", e)
+        except ImportError:
             return []
+        try:
+            infos = await asyncio.wait_for(DeviceInformation.find_all_async(_aqs(LE, True), PROPS, DeviceInformationKind.ASSOCIATION_ENDPOINT), 4)
+        except Exception as e:
+            if isinstance(e, asyncio.TimeoutError):
+                self._winrt_hangs.add("le")
+            _warn_once("listing paired Bluetooth LE devices", e)
+            return []
+        return [d for d in (self._device(i, "paired") for i in infos) if d]
+
+    async def paired(self) -> list[Device]:
+        # The panel and the agent ask often; Windows answers quickly, but don't hammer it.
+        if time.monotonic() - self._paired_cache[0] < 1.0:
+            return [Device.from_dict(d.to_dict()) for d in self._paired_cache[1]]
         devs: dict[str, Device] = {}
-        for proto in (CLASSIC, LE):
+        le_task = asyncio.ensure_future(self._winrt_paired_le())
+        if self.w32:
             try:
-                infos = await asyncio.wait_for(
-                    DeviceInformation.find_all_async(_aqs(proto, True), PROPS, DeviceInformationKind.ASSOCIATION_ENDPOINT), 8)
-            except Exception as e:
-                _warn_once(f"listing paired devices ({'classic' if proto == CLASSIC else 'LE'})", e)
-                continue
-            for info in infos:
-                d = self._device(info, "paired")
-                if d:
-                    prev = devs.get(d.id)
-                    if prev:  # dual-mode device listed twice: connected if either side is
-                        prev.connected = prev.connected or d.connected
-                    else:
+                for b in await asyncio.get_running_loop().run_in_executor(None, self.w32.devices):
+                    if b.paired:
+                        d = self._from_w32(b, "paired")
                         devs[d.id] = d
+            except Exception as e:
+                _warn_once("listing paired devices (classic API)", e)
+        for d in await le_task:
+            prev = devs.get(d.id)
+            if prev:
+                prev.connected = prev.connected or d.connected
+            else:
+                devs[d.id] = d
         out = list(devs.values())
         self._paired_cache = (time.monotonic(), out)
         return [Device.from_dict(d.to_dict()) for d in out]
 
     async def scan(self, seconds: float = 6.0) -> list[Device]:
-        """Devices in pairing mode nearby (Bluetooth inquiry + connectable LE), like Settings › Add device."""
+        """Devices in pairing mode nearby, like Settings › Add device: a classic Bluetooth inquiry
+        (built into Windows) plus connectable Bluetooth LE devices when WinRT is installed."""
+        loop = asyncio.get_running_loop()
+        le_task = asyncio.ensure_future(self._winrt_scan(seconds))
+        found: dict[str, Device] = {}
+        if self.w32:
+            try:
+                for b in await loop.run_in_executor(None, self.w32.devices, True, seconds):
+                    if not b.paired and b.name:
+                        d = self._from_w32(b, "nearby")
+                        found[d.id] = d
+            except Exception as e:
+                _warn_once("scanning (classic API)", e)
+        for d in await le_task:
+            found.setdefault(d.id, d)
+        out = list(found.values())
+        out.sort(key=lambda d: (d.kind not in ("headphones", "speaker"), -(d.rssi if d.rssi is not None else -100)))
+        return out
+
+    async def _winrt_scan(self, seconds: float) -> list[Device]:
         try:
             from winrt.windows.devices.enumeration import DeviceInformation, DeviceInformationKind
-        except Exception as e:
-            _warn_once("WinRT not available", e)
+        except ImportError:
             return []
         loop = asyncio.get_running_loop()
         found: dict[str, Device] = {}
@@ -365,7 +467,7 @@ class WindowsBluetooth(BluetoothPlatform):
             loop.call_soon_threadsafe(apply)
 
         watchers = []
-        for aqs in (_aqs(CLASSIC, False, inquiry=True), _aqs(LE, False) + " AND System.Devices.Aep.Bluetooth.Le.IsConnectable:=System.StructuredQueryType.Boolean#True"):
+        for aqs in (_aqs(LE, False) + " AND System.Devices.Aep.Bluetooth.Le.IsConnectable:=System.StructuredQueryType.Boolean#True",):
             try:
                 w = DeviceInformation.create_watcher(aqs, PROPS, DeviceInformationKind.ASSOCIATION_ENDPOINT)
                 w.add_added(on_info)
@@ -382,24 +484,30 @@ class WindowsBluetooth(BluetoothPlatform):
                     w.stop()
                 except Exception:
                     pass
-        # LE lists every beacon in range; keep the ones that look like something you'd connect to.
-        out = [d for d in found.values() if d.kind != "other" or not re.fullmatch(r"[0-9A-F:\-_ ]+|LE-.*", d.name, re.I)]
+        # LE lists everything in range, including nameless beacons; keep devices with a real name.
+        out = [d for d in found.values() if d.name and not re.fullmatch(r"[0-9A-F:\-_ ]+|LE[-_ ].*|Unknown.*", d.name, re.I)]
         out.sort(key=lambda d: (d.kind not in ("headphones", "speaker"), -(d.rssi if d.rssi is not None else -100)))
         return out
 
     async def _status(self, dev: Device) -> Optional[bool]:
         """Is the device connected right now (fresh, not cached)?"""
+        if self.w32 and dev.address:
+            try:
+                b = await asyncio.get_running_loop().run_in_executor(None, self.w32.info, dev.address)
+                if b is not None:
+                    return b.connected
+            except Exception as e:
+                _warn_once("reading connection state (classic API)", e)
         aep = self._aep.get(norm_addr(dev.address) or "")
         try:
             from winrt.windows.devices.enumeration import DeviceInformation, DeviceInformationKind
 
             if aep:
-                info = await DeviceInformation.create_from_id_async(aep, ["System.Devices.Aep.IsConnected"], DeviceInformationKind.ASSOCIATION_ENDPOINT)
+                info = await asyncio.wait_for(DeviceInformation.create_from_id_async(aep, ["System.Devices.Aep.IsConnected"], DeviceInformationKind.ASSOCIATION_ENDPOINT), 4)
                 return bool(_prop(info, "System.Devices.Aep.IsConnected"))
         except Exception as e:
-            _warn_once("reading connection status", e)
-        self._paired_cache = (0.0, [])
-        return next((d.connected for d in await self.paired() if d.address == dev.address), None)
+            _warn_once("reading connection status (WinRT)", e)
+        return None
 
     async def _wait_connected(self, dev: Device, want: bool, timeout: float) -> bool:
         deadline = time.monotonic() + timeout
@@ -411,46 +519,62 @@ class WindowsBluetooth(BluetoothPlatform):
         return False
 
     async def pair(self, dev: Device) -> bool:
-        try:
-            from winrt.windows.devices.enumeration import DeviceInformation, DevicePairingKinds, DevicePairingResultStatus
-        except Exception:
+        """Pair without a Settings window: WinRT custom pairing (confirm-only / PIN 0000) when installed,
+        otherwise the classic API (Windows shows its own prompt only if the device asks for a PIN)."""
+        if not dev.address:
             return False
-        aep = self._aep.get(norm_addr(dev.address) or "")
-        if not aep:
-            log.info("pair: %s wasn't seen in a scan", dev.name)
-            return False
-        info = await DeviceInformation.create_from_id_async(aep)
-        if info.pairing.is_paired:
-            return True
-        custom = info.pairing.custom
-
-        def on_request(_sender, args) -> None:
-            # Headphones and speakers use "just works" (confirm) or a fixed PIN, almost always 0000.
-            try:
-                if args.pairing_kind == DevicePairingKinds.PROVIDE_PIN:
-                    args.accept("0000")
-                else:
-                    args.accept()
-            except Exception as e:
-                log.info("pairing request: %s", e)
-
-        token = custom.add_pairing_requested(on_request)
-        try:
-            kinds = DevicePairingKinds.CONFIRM_ONLY | DevicePairingKinds.PROVIDE_PIN | DevicePairingKinds.CONFIRM_PIN_MATCH
-            res = await asyncio.wait_for(custom.pair_async(kinds), 30)
-        except Exception as e:
-            log.info("pairing %s failed: %s", dev.name, e)
-            return False
-        finally:
-            try:
-                custom.remove_pairing_requested(token)
-            except Exception:
-                pass
+        if await self._pair_winrt(dev):
+            ok = True
+        elif self.w32:
+            code = await asyncio.get_running_loop().run_in_executor(None, self.w32.authenticate, dev.address)
+            ok = code == 0
+            if not ok:
+                log.info("pairing %s (classic API): error %s", dev.name, code)
+        else:
+            ok = False
         self._paired_cache = (0.0, [])
-        ok = res.status in (DevicePairingResultStatus.PAIRED, DevicePairingResultStatus.ALREADY_PAIRED)
-        if not ok:
-            log.info("pairing %s: %s", dev.name, res.status)
+        if ok and self.w32:  # make sure the audio services are on, so Windows connects it as headphones
+            await asyncio.get_running_loop().run_in_executor(None, self.w32.set_services, dev.address, True)
         return ok
+
+    async def _pair_winrt(self, dev: Device) -> bool:
+        try:
+            from winrt.windows.devices.bluetooth import BluetoothDevice
+            from winrt.windows.devices.enumeration import DevicePairingKinds, DevicePairingResultStatus
+            from .win32bt import addr_int
+        except ImportError:
+            return False
+        try:
+            bd = await asyncio.wait_for(BluetoothDevice.from_bluetooth_address_async(addr_int(dev.address)), 8)
+            if bd is None:
+                return False
+            info = bd.device_information
+            if info.pairing.is_paired:
+                return True
+            custom = info.pairing.custom
+
+            def on_request(_sender, args) -> None:
+                try:
+                    if args.pairing_kind == DevicePairingKinds.PROVIDE_PIN:
+                        args.accept("0000")
+                    else:
+                        args.accept()
+                except Exception as e:
+                    log.info("pairing request: %s", e)
+
+            token = custom.add_pairing_requested(on_request)
+            try:
+                kinds = DevicePairingKinds.CONFIRM_ONLY | DevicePairingKinds.PROVIDE_PIN | DevicePairingKinds.CONFIRM_PIN_MATCH
+                res = await asyncio.wait_for(custom.pair_async(kinds), 30)
+            finally:
+                try:
+                    custom.remove_pairing_requested(token)
+                except Exception:
+                    pass
+            return res.status in (DevicePairingResultStatus.PAIRED, DevicePairingResultStatus.ALREADY_PAIRED)
+        except Exception as e:
+            _warn_once("pairing (WinRT)", e)
+            return False
 
     async def connect(self, dev: Device) -> bool:
         """Ask the headset's audio driver to connect, then wait (briefly) for Windows to confirm.
@@ -460,6 +584,8 @@ class WindowsBluetooth(BluetoothPlatform):
             return True
         try:
             targets = _match_endpoints(await self.com.call(_audio_endpoints), dev)
+        except ImportError:
+            targets = []
         except Exception as e:
             _warn_once("listing audio endpoints", e)
             targets = []
@@ -470,23 +596,33 @@ class WindowsBluetooth(BluetoothPlatform):
                     return True
             except Exception as e:
                 _warn_once("reconnecting through the audio driver", e)
-        # Fallback: restart the device's audio services, which makes Windows page it again.
+        # Fallback (and the only way without pycaw): restart the device's audio services, which makes Windows page it.
+        if not self.w32:
+            return False
+        loop = asyncio.get_running_loop()
         try:
-            await asyncio.get_running_loop().run_in_executor(None, _toggle_services, dev)
+            await loop.run_in_executor(None, self.w32.set_services, dev.address, False)
+            await asyncio.sleep(0.5)
+            await loop.run_in_executor(None, self.w32.set_services, dev.address, True)
         except Exception as e:
             _warn_once("restarting Bluetooth audio services", e)
             return False
-        return await self._wait_connected(dev, True, 7)
+        return await self._wait_connected(dev, True, 10)
 
     async def disconnect(self, dev: Device) -> bool:
         try:
-            eps = await self.com.call(_audio_endpoints)
-            for e in _match_endpoints(eps, dev):
+            for e in _match_endpoints(await self.com.call(_audio_endpoints), dev):
                 await self.com.call(_ks_oneshot, e["filter"], KSPROPERTY_ONESHOT_DISCONNECT)
+            if await self._wait_connected(dev, False, 5):
+                return True
+        except ImportError:
+            pass
         except Exception as e:
-            _warn_once("disconnecting a headset", e)
-            return False
-        return await self._wait_connected(dev, False, 6)
+            _warn_once("disconnecting through the audio driver", e)
+        if self.w32:  # turning its audio services off disconnects it; Connect turns them back on
+            await asyncio.get_running_loop().run_in_executor(None, self.w32.set_services, dev.address, False)
+            return await self._wait_connected(dev, False, 6)
+        return False
 
     # ------------------------------------------------------------- audio output
     async def audio_output(self) -> AudioOutput:
@@ -499,14 +635,18 @@ class WindowsBluetooth(BluetoothPlatform):
             cur = await self.com.call(read)
             if cur:
                 return AudioOutput(cur["name"], cur["address"], "bluetooth" if cur["bluetooth"] else "builtin")
+        except ImportError:
+            pass
         except Exception as e:
             _warn_once("reading the audio output (Core Audio)", e)
         try:
             from winrt.windows.devices.enumeration import DeviceInformation
             from winrt.windows.media.devices import AudioDeviceRole, MediaDevice
 
-            info = await DeviceInformation.create_from_id_async(MediaDevice.get_default_audio_render_id(AudioDeviceRole.DEFAULT))
+            info = await asyncio.wait_for(DeviceInformation.create_from_id_async(MediaDevice.get_default_audio_render_id(AudioDeviceRole.DEFAULT)), 4)
             return AudioOutput(info.name, None, "other")
+        except ImportError:
+            pass
         except Exception as e:
             _warn_once("reading the audio output (WinRT)", e)
         return AudioOutput("Speakers")
@@ -535,19 +675,16 @@ class WindowsBluetooth(BluetoothPlatform):
 
     # ------------------------------------------------------------- diagnostics
     async def diagnose(self) -> dict:
-        report: dict[str, Any] = {"radio": await self.radio_state()}
-        try:
-            import winrt  # noqa: F401
-            import pycaw  # noqa: F401
-
-            report["packages"] = "ok"
-        except Exception as e:
-            report["packages"] = f"missing: {e}"
+        report: dict[str, Any] = {"radio": await self.radio_state(), "classic_api": bool(self.w32)}
+        miss = missing_packages()
+        report["packages"] = "all installed" if not miss else f"missing {', '.join(miss)}. Fix: {install_command()}"
         report["paired"] = [{"name": d.name, "address": d.address, "kind": d.kind, "connected": d.connected, "present": d.present}
                             for d in await self.paired()]
         try:
             eps = await self.com.call(_audio_endpoints)
             report["audio_endpoints"] = [{k: e[k] for k in ("name", "state", "active", "bluetooth", "address", "hands_free")} for e in eps]
+        except ImportError:
+            report["audio_endpoints"] = "needs pycaw (see Packages)"
         except Exception as e:
             report["audio_endpoints"] = f"error: {type(e).__name__}: {e}"
         report["audio_output"] = (await self.audio_output()).to_dict()
@@ -562,37 +699,3 @@ class WindowsBluetooth(BluetoothPlatform):
         dev = await WiFiDirectDevice.from_id_async(peer["wfd_id"])
         pairs = dev.get_connection_endpoint_pairs()
         return pairs[0].remote_host_name.display_name if pairs else None
-
-
-def _toggle_services(dev: Device) -> bool:
-    """Fallback for devices without an audio endpoint: turn the A2DP/HFP services off and on
-    (BluetoothSetServiceState), which makes Windows reconnect them."""
-    A2DP_SINK = "{0000110B-0000-1000-8000-00805F9B34FB}"
-    HFP = "{0000111E-0000-1000-8000-00805F9B34FB}"
-
-    class BLUETOOTH_DEVICE_INFO(ctypes.Structure):
-        _fields_ = [("dwSize", ctypes.c_uint32), ("Address", ctypes.c_uint64), ("ulClassofDevice", ctypes.c_uint32),
-                    ("fConnected", ctypes.c_int), ("fRemembered", ctypes.c_int), ("fAuthenticated", ctypes.c_int),
-                    ("stLastSeen", ctypes.c_byte * 16), ("stLastUsed", ctypes.c_byte * 16), ("szName", ctypes.c_wchar * 248)]
-
-    class GUID(ctypes.Structure):
-        _fields_ = [("Data1", ctypes.c_uint32), ("Data2", ctypes.c_uint16), ("Data3", ctypes.c_uint16), ("Data4", ctypes.c_ubyte * 8)]
-
-    def guid(s: str) -> GUID:
-        import uuid
-
-        u = uuid.UUID(s)
-        g = GUID(u.time_low, u.time_mid, u.time_hi_version)
-        g.Data4[:] = list(u.bytes[8:])
-        return g
-
-    bth = ctypes.WinDLL("bthprops.cpl")  # type: ignore[attr-defined]
-    info = BLUETOOTH_DEVICE_INFO()
-    info.dwSize = ctypes.sizeof(info)
-    info.Address = int((dev.address or "0").replace(":", ""), 16)
-    for enable in (0, 1):
-        for svc in (A2DP_SINK, HFP):
-            g = guid(svc)
-            bth.BluetoothSetServiceState(None, ctypes.byref(info), ctypes.byref(g), enable)
-        time.sleep(0.5)
-    return True

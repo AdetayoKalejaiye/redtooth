@@ -35,7 +35,9 @@ async def test_panel_device_api(tmp_path):
         found = await (await client.post("/api/scan", json={"seconds": 1}, headers=H)).json()
         assert "JBL Flip 6" in [x["name"] for x in found["devices"]]
         st = await (await client.get("/api/state")).json()
-        assert st["radio"] == "on" and all(n["kind"] in ("headphones", "speaker", "earbuds", "other") for n in st["nearby_devices"])
+        kinds = [n["kind"] for n in st["nearby_devices"]]
+        assert st["radio"] == "on" and "phone" in kinds  # a normal Bluetooth scan: phones too
+        assert kinds.index("phone") > kinds.index("speaker")  # audio first
         r = await (await client.post("/api/pair", json={"device_id": "bt:jbl"}, headers=H)).json()
         assert r["ok"], r
         r = await (await client.post("/api/my-devices", json={"device_id": "bt:jbl", "mine": True, "alias": "Alex's speaker"}, headers=H)).json()

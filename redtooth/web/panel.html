@@ -100,8 +100,12 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .chips{display:flex;gap:6px;overflow-x:auto;padding:0 2px 2px;scrollbar-width:none}
 .chip{flex:none;height:26px;padding:0 10px;border-radius:13px;background:var(--fill);font-size:11.5px;color:var(--label2);white-space:nowrap}
 .chip:hover{color:var(--label);background:var(--fill2)}
-.scroll{flex:1 1 auto;overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:120px}
-.panel>.tile,.panel>.chips,.panel>.ask{flex:none}
+.scroll{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:10px;min-height:0;margin:0 -4px;padding:0 4px}
+.scroll>*{flex:none}
+.panel{height:calc(100vh - 88px)}
+.view{min-height:0;min-width:0}
+.view>*{min-width:0}
+#home>.chips,#home>.ask,#home>.indexing{flex:none}
 /* side column: demo + recipient */
 .side{width:320px;display:flex;flex-direction:column;gap:14px}
 .card{border-radius:22px;padding:14px}
@@ -173,7 +177,7 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .sect .sub a,.sect .sub button{color:var(--tint);font-weight:600;font-size:12px}
 @media (max-width:760px){
   .stage{padding:0;display:block}
-  .panel{width:100%;border-radius:0;min-height:100vh;max-height:none;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))}
+  .panel{width:100%;border-radius:0;min-height:100vh;height:100vh;max-height:none;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))}
   .side{width:auto;padding:12px}
   body{font-size:15px}.ask input{font-size:16px}
 }
@@ -189,7 +193,9 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
     </header>
 
     <div class="view" id="home">
+    <div class="scroll" id="homeScroll">
     <div class="banner warn hidden" id="radioBanner" role="status"></div>
+    <div class="banner warn hidden" id="setupBanner" role="status"></div>
     <section class="tile" aria-label="Audio">
       <div class="row">
         <div class="icon on" id="outIcon"></div>
@@ -219,7 +225,6 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 
     <section class="tile selected hidden" id="selected" aria-live="polite"></section>
 
-    <div class="scroll">
       <div class="feed" id="feed" aria-live="polite"></div>
     </div>
 
@@ -235,7 +240,7 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
     <div class="view settings hidden" id="settings">
       <section class="tile" id="sec-devices">
         <h2>Your devices</h2>
-        <p>Mark the headphones and speakers that are yours. Then anyone in your contacts who uses Redtooth can ask for them by name — “connect to <span class="me-first">your</span>’s headphones” — and their Redtooth knows exactly which pair you mean, even before they’re paired. Nothing is shared until you mark it.</p>
+        <p>Mark the devices that are yours: headphones, speakers, your phone. Then anyone in your contacts who uses Redtooth can ask for them by name — “connect to <span class="me-first">your</span>’s speaker” — and their Redtooth knows exactly which one you mean, even before it’s paired with their device. Nothing is shared until you mark it.</p>
         <div id="myDevices"><div class="note">Loading…</div></div>
       </section>
 
@@ -313,6 +318,7 @@ const I = {
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const kindIcon = k => I[k] || (k==='earbuds'?I.headphones:I.builtin);
+const KIND_LABEL = {headphones:'Headphones', earbuds:'Earbuds', speaker:'Speaker', phone:'Phone', laptop:'Computer', desktop:'Computer', tablet:'Tablet', other:'Device'};
 const EXT = {presentation:'PPT',document:'DOC',spreadsheet:'XLS',pdf:'PDF',image:'IMG',video:'MOV',audio:'AUD'};
 const extLabel = f => ((f.ext||f.name.slice(f.name.lastIndexOf('.'))||'').replace('.','').toUpperCase().slice(0,4)) || EXT[f.kind] || 'FILE';
 const ms = v => v==null ? '—' : v < 1000 ? `${v < 10 ? v.toFixed(1) : Math.round(v)} ms` : `${(v/1000).toFixed(2)} s`;
@@ -343,6 +349,9 @@ function renderAudio(){
   const rb = $('#radioBanner');
   const radio = S.radio || 'on';
   rb.classList.toggle('hidden', radio === 'on' || radio === 'unknown');
+  const sb = $('#setupBanner');
+  sb.classList.toggle('hidden', !S.setup_issue);
+  if (S.setup_issue){ const [msg, cmd] = S.setup_issue.split(' Run: '); sb.innerHTML = `<div class="grow">${esc(msg)}<br>Run this in PowerShell, then restart Redtooth:<br><code style="user-select:all;font-size:11px;word-break:break-all">${esc(cmd||'')}</code></div>`; }
   rb.textContent = radio === 'missing' ? 'This computer has no Bluetooth adapter Redtooth can use.' : 'Bluetooth is off. Turn it on in Quick Settings (Win + A) to connect headphones.';
   // Your audio devices: the true state from Windows, one action each.
   const list = $('#audioList');
@@ -355,7 +364,10 @@ function renderAudio(){
     return `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
       <div class="grow"><div class="ellipsis nm">${esc(d.label)}</div><div class="sub state">${esc(who)}${state}</div></div>${action}</div>`;
   }).join('');
-  list.classList.toggle('hidden', !devs.length);
+  const others = (S.other_devices || []).slice(0, 6);
+  list.innerHTML += others.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
+      <div class="grow"><div class="ellipsis nm">${esc(d.label)}</div><div class="sub state">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.connected ? '<i class="dot green"></i>Connected' : 'Paired'}</div></div></div>`).join('');
+  list.classList.toggle('hidden', !devs.length && !others.length);
   renderNearby();
 }
 
@@ -363,12 +375,12 @@ let scanning = false;
 function renderNearby(){
   const el = $('#nearbyList'), hint = $('#scanHint'), btn = $('#scanBtn');
   const found = (S.nearby_devices || []);
-  btn.disabled = scanning || (S.radio && S.radio !== 'on' && S.radio !== 'unknown');
+  btn.disabled = scanning || S.radio === 'off' || S.radio === 'missing';
   btn.textContent = scanning ? 'Scanning…' : found.length ? 'Scan again' : 'Add a device';
-  hint.innerHTML = scanning ? '<span class="state"><span class="spin"></span>Put the device in pairing mode (usually: hold the power button until the light flashes)</span>'
-    : found.length ? `${found.length} found nearby` : '';
+  hint.innerHTML = scanning ? '<span class="state"><span class="spin"></span>Looking for devices (about 10 s). Headphones: put them in pairing mode. Phones: open their Bluetooth settings.</span>'
+    : found.length ? `${found.length} found nearby` : 'Pair headphones, speakers, phones…';
   el.innerHTML = found.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
-      <div class="grow"><div class="ellipsis nm">${esc(d.name)}</div><div class="sub">${d.kind==='other'?'Device':esc(d.kind[0].toUpperCase()+d.kind.slice(1))} · ${(d.rssi ?? -99) > -65 ? 'close by' : 'in range'}</div></div>
+      <div class="grow"><div class="ellipsis nm">${esc(d.name)}</div><div class="sub">${esc(KIND_LABEL[d.kind] || 'Device')}${d.rssi != null ? ' · ' + ((d.rssi > -65) ? 'close by' : 'in range') : ''}</div></div>
       <button class="pill tint" data-pair="${esc(d.id)}">Pair</button></div>`).join('');
   el.classList.toggle('hidden', !found.length);
 }
@@ -450,13 +462,13 @@ async function loadMyDevices(){
   const r = await api.get('/api/my-devices');
   document.querySelectorAll('.me-first').forEach(e => e.textContent = r.me);
   const el = $('#myDevices');
-  const devs = r.devices.filter(d => ['headphones','earbuds','speaker'].includes(d.kind) || d.mine);
-  if (!devs.length){ el.innerHTML = '<div class="note">No headphones or speakers are paired with this computer yet. Use “Add a device” on the main screen first.</div>'; return; }
+  const devs = r.devices;
+  if (!devs.length){ el.innerHTML = '<div class="note">Nothing is paired with this computer yet. Use “Add a device” on the main screen first.</div>'; return; }
   el.innerHTML = devs.map(d => `<div class="mine" data-dev="${esc(d.id)}">
       <div class="head"><div class="icon sm">${kindIcon(d.kind)}</div>
-        <div class="grow"><div class="ellipsis nm">${esc(d.model || d.name)}</div><div class="sub">${d.mine ? 'Yours · contacts can ask for it' : 'Not marked'}</div></div>
+        <div class="grow"><div class="ellipsis nm">${esc(d.model || d.name)}</div><div class="sub">${esc(KIND_LABEL[d.kind] || 'Device')} · ${d.mine ? 'yours, contacts can ask for it' : 'not marked'}</div></div>
         <button class="sw ${d.mine?'on':''}" data-mine="${esc(d.id)}" aria-label="These are mine"></button></div>
-      <div class="alias ${d.mine?'':'hidden'}"><input class="input" data-alias="${esc(d.id)}" placeholder="${esc(r.me)}’s ${esc(d.kind==='speaker'?'speaker':'headphones')}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button></div>
+      <div class="alias ${d.mine?'':'hidden'}"><input class="input" data-alias="${esc(d.id)}" placeholder="${esc(r.me)}’s ${esc((KIND_LABEL[d.kind] || 'device').toLowerCase())}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button></div>
     </div>`).join('');
 }
 async function setMine(id, mine, alias){
@@ -526,7 +538,7 @@ $('#doctorBtn').onclick = async () => {
 
 // ---------------------------------------------------------------- feed
 const feed = $('#feed');
-function push(el){ feed.appendChild(el); while (feed.children.length > 30) feed.firstChild.remove(); feed.parentElement.scrollTop = 1e9; }
+function push(el){ feed.appendChild(el); while (feed.children.length > 30) feed.firstChild.remove(); const sc = $('#homeScroll'); sc.scrollTop = sc.scrollHeight; }
 function userMsg(t){ const d=document.createElement('div'); d.className='msg-user'; d.textContent=t; push(d); }
 
 function fileRow(f){
