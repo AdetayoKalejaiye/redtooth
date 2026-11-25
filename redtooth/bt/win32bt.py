@@ -110,25 +110,40 @@ class Win32Bluetooth:
     def __init__(self) -> None:
         if not sys.platform.startswith("win"):
             raise OSError("Windows only")
-        try:
-            self.dll = ctypes.WinDLL("BluetoothApis.dll")
-        except OSError:
-            self.dll = ctypes.WinDLL("bthprops.cpl")
-        d = self.dll
-        d.BluetoothFindFirstRadio.restype = wt.HANDLE
-        d.BluetoothFindFirstRadio.argtypes = [ctypes.POINTER(BLUETOOTH_FIND_RADIO_PARAMS), ctypes.POINTER(wt.HANDLE)]
-        d.BluetoothFindRadioClose.argtypes = [wt.HANDLE]
-        d.BluetoothFindFirstDevice.restype = wt.HANDLE
-        d.BluetoothFindFirstDevice.argtypes = [ctypes.POINTER(BLUETOOTH_DEVICE_SEARCH_PARAMS), ctypes.POINTER(BLUETOOTH_DEVICE_INFO)]
-        d.BluetoothFindNextDevice.restype = wt.BOOL
-        d.BluetoothFindNextDevice.argtypes = [wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO)]
-        d.BluetoothFindDeviceClose.argtypes = [wt.HANDLE]
-        d.BluetoothGetDeviceInfo.restype = wt.DWORD
-        d.BluetoothGetDeviceInfo.argtypes = [wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO)]
-        d.BluetoothSetServiceState.restype = wt.DWORD
-        d.BluetoothSetServiceState.argtypes = [wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO), ctypes.POINTER(GUID), wt.DWORD]
-        d.BluetoothAuthenticateDeviceEx.restype = wt.DWORD
-        d.BluetoothAuthenticateDeviceEx.argtypes = [wt.HWND, wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO), ctypes.c_void_p, ctypes.c_int]
+        # Functions are split across two DLLs depending on the Windows version; take each from wherever it is.
+        dlls = []
+        for name in ("BluetoothApis.dll", "bthprops.cpl"):
+            try:
+                dlls.append(ctypes.WinDLL(name))
+            except OSError:
+                pass
+        if not dlls:
+            raise OSError("no Bluetooth API DLL")
+
+        def fn(name: str, restype, argtypes, required: bool = True):
+            for d in dlls:
+                f = getattr(d, name, None)
+                if f is not None:
+                    f.restype, f.argtypes = restype, argtypes
+                    return f
+            if required:
+                raise OSError(f"{name} not found")
+            return None
+
+        class _Api:  # what the rest of this class calls self.dll.X
+            pass
+
+        d = _Api()
+        d.BluetoothFindFirstRadio = fn("BluetoothFindFirstRadio", wt.HANDLE, [ctypes.POINTER(BLUETOOTH_FIND_RADIO_PARAMS), ctypes.POINTER(wt.HANDLE)])
+        d.BluetoothFindRadioClose = fn("BluetoothFindRadioClose", wt.BOOL, [wt.HANDLE])
+        d.BluetoothFindFirstDevice = fn("BluetoothFindFirstDevice", wt.HANDLE, [ctypes.POINTER(BLUETOOTH_DEVICE_SEARCH_PARAMS), ctypes.POINTER(BLUETOOTH_DEVICE_INFO)])
+        d.BluetoothFindNextDevice = fn("BluetoothFindNextDevice", wt.BOOL, [wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO)])
+        d.BluetoothFindDeviceClose = fn("BluetoothFindDeviceClose", wt.BOOL, [wt.HANDLE])
+        d.BluetoothGetDeviceInfo = fn("BluetoothGetDeviceInfo", wt.DWORD, [wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO)])
+        d.BluetoothSetServiceState = fn("BluetoothSetServiceState", wt.DWORD, [wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO), ctypes.POINTER(GUID), wt.DWORD], required=False)
+        d.BluetoothAuthenticateDeviceEx = fn("BluetoothAuthenticateDeviceEx", wt.DWORD,
+                                             [wt.HWND, wt.HANDLE, ctypes.POINTER(BLUETOOTH_DEVICE_INFO), ctypes.c_void_p, ctypes.c_int], required=False)
+        self.dll = d
         self.kernel32 = ctypes.WinDLL("kernel32")
         self.kernel32.CloseHandle.argtypes = [wt.HANDLE]
 
@@ -197,6 +212,8 @@ class Win32Bluetooth:
             self.kernel32.CloseHandle(h)
 
     def set_services(self, address: str, enable: bool, services=(A2DP_SINK, HFP)) -> bool:
+        if self.dll.BluetoothSetServiceState is None:
+            return False
         h = self.radio()
         if not h:
             return False
@@ -216,6 +233,8 @@ class Win32Bluetooth:
     def authenticate(self, address: str) -> int:
         """Pair. Headphones use "just works", so this usually completes without any window; if the device
         wants a PIN, Windows shows its own prompt. Returns the Win32 error code (0 = paired)."""
+        if self.dll.BluetoothAuthenticateDeviceEx is None:
+            return 120  # ERROR_CALL_NOT_IMPLEMENTED
         h = self.radio()
         if not h:
             return 1

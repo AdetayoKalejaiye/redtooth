@@ -75,6 +75,11 @@ def fetch_model(dest: Path = MODEL_DIR, progress: Optional[Callable[[str, int, i
     return dest
 
 
+def _clean(t) -> str:
+    t = t if isinstance(t, str) else ("" if t is None else str(t))
+    return t.encode("utf-8", "replace").decode("utf-8")[:8000]
+
+
 class E5OnnxEmbedder:
     name = "multilingual-e5-small (onnx)"
     dim = 384
@@ -94,6 +99,8 @@ class E5OnnxEmbedder:
 
     def embed(self, texts: list[str], kind: str = "passage") -> np.ndarray:
         # Batch texts of similar length together so short chunks aren't padded to the longest one.
+        # Windows file names and extracted text can carry lone surrogates or non-strings; the tokenizer rejects both.
+        texts = [_clean(t) for t in texts]
         order = sorted(range(len(texts)), key=lambda j: len(texts[j]))
         texts = [texts[j] for j in order]
         out = []
