@@ -110,6 +110,10 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .side{width:320px;display:flex;flex-direction:column;gap:14px}
 .card{border-radius:22px;padding:14px}
 .card h3{font-size:13px;font-weight:600;margin-bottom:8px}
+.mineWhy{font-size:11.5px;color:var(--label2);line-height:1.4;margin-bottom:6px}
+#mineList .devrow{padding:8px 0;border-top:.5px solid var(--sep)}
+.speed{padding:10px 0;border-top:.5px solid var(--sep);font-size:13px}
+.speed summary{cursor:pointer;color:var(--label2)}
 .seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
 .seg button{flex:1;height:26px;border-radius:7px;font-size:11.5px;font-weight:500;color:var(--label2)}
 .seg button.on{background:var(--glass-strong);color:var(--label);box-shadow:0 1px 3px rgba(0,0,0,.12)}
@@ -245,13 +249,13 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
     <div class="view settings hidden" id="settings">
       <section class="tile" id="sec-devices">
         <h2>Your devices</h2>
-        <p>The headphones, speakers and phone that belong to you. A contact who uses Redtooth can then say “connect to <span class="me-first">your</span>’s speaker” and their Redtooth knows exactly which one you mean, and “send it to my phone” knows where to go. Nothing is shared until you add it here.</p>
+        <p>Only the headphones, speakers and phone you own, not everything you've ever paired with. A contact who uses Redtooth can then say “connect to <span class="me-first">your</span>’s speaker” and their Redtooth knows exactly which one you mean, and “send it to my phone” knows where to go. Nothing is shared until you add it here.</p>
         <div id="myDevices"><div class="note">Loading…</div></div>
       </section>
 
       <section class="tile" id="sec-bluetooth">
-        <h2>Paired with this computer</h2>
-        <p>Every Bluetooth device this computer knows. Connect or disconnect them here, or mark one as yours.</p>
+        <h2>Everything else this computer has paired with</h2>
+        <p>This computer remembers every device it has ever paired with, including old ones and ones you borrowed, so this list is long. None of it is shared. If one of these is yours, tap “This is mine” to move it up to Your devices.</p>
         <div id="btDevices"><div class="note">Loading…</div></div>
       </section>
 
@@ -280,6 +284,9 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
         <div class="toggle" style="border-top:0"><span>Start when I sign in</span><button class="sw" id="autostartSw" aria-label="Start when I sign in"></button></div>
         <div class="toggle"><span>Bluetooth check</span><button class="pill" id="doctorBtn">Run</button></div>
         <pre class="note" id="doctorOut" style="white-space:pre-wrap;font:11px ui-monospace,Consolas,monospace;max-height:220px;overflow:auto" hidden></pre>
+        <details class="speed"><summary>Speed details</summary>
+          <div class="metrics" id="metrics" style="margin-top:8px"><span class="empty" style="grid-column:1/-1;padding:4px 0">Nothing measured yet</span></div>
+        </details>
         <p id="searchInfo" class="hidden"></p>
         <p id="directoryInfo"></p>
       </section>
@@ -306,9 +313,11 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
       <div id="peerFeed" style="display:flex;flex-direction:column;gap:8px"><div class="empty">No notifications</div></div>
     </div>
 
-    <div class="card glass">
-      <h3>Timing</h3>
-      <div class="metrics" id="metrics"><span class="empty" style="grid-column:1/-1;padding:4px 0">Nothing measured yet</span></div>
+    <div class="card glass" id="mineCard">
+      <h3>Your devices</h3>
+      <p class="cap mineWhy">Only things you own: your headphones, speakers and phone. “Send it to my phone” goes here, and friends who use Redtooth can ask for them by name.</p>
+      <div id="mineList"></div>
+      <button class="pill" data-goto="devices" id="mineEdit" style="margin-top:10px">Choose yours</button>
     </div>
   </aside>
 </div>
@@ -365,7 +374,7 @@ function renderAudio(){
   sb.classList.toggle('hidden', !S.setup_issue);
   if (S.setup_issue){ const [msg, cmd] = S.setup_issue.split(' Run: '); sb.innerHTML = `<div class="grow">${esc(msg)}<br>Run this in PowerShell, then restart Redtooth:<br><code style="user-select:all;font-size:11px;word-break:break-all">${esc(cmd||'')}</code></div>`; }
   rb.textContent = radio === 'missing' ? 'This computer has no Bluetooth adapter Redtooth can use.' : 'Bluetooth is off. Turn it on in Quick Settings (Win + A) to connect headphones.';
-  // Only what's connected right now; everything else lives in Settings (Your devices, Paired with this computer).
+  // Only what's connected right now; your devices are in the side card, everything else in Settings.
   const list = $('#audioList');
   const devs = S.audio_devices.filter(d => !d.active && d.connected && d.paired).slice(0, 4);
   list.innerHTML = devs.map(d => {
@@ -374,12 +383,23 @@ function renderAudio(){
       <div class="grow"><div class="ellipsis nm">${esc(d.label)}</div><div class="sub state">${esc(who)}<i class="dot green"></i>Connected</div></div>
       <button class="pill" data-connect="${esc(d.id)}" title="Play audio through ${esc(d.label)}">Use</button><button class="pill ghost" data-disconnect="${esc(d.id)}">Disconnect</button></div>`;
   }).join('');
-  const nPaired = S.audio_devices.filter(d => d.paired).length + (S.other_devices || []).length;
-  const nMine = S.audio_devices.filter(d => d.mine).length + (S.other_devices || []).filter(d => d.mine).length;
-  list.innerHTML += `<button class="linkrow" data-goto="devices"><div class="icon sm">${I.headphones}</div>
-      <div class="grow"><b>Your devices</b><span class="sub">${nMine ? `${nMine} marked as yours` : 'Mark which are yours'} · ${nPaired} paired with this computer</span></div><span class="chev">›</span></button>`;
-  list.classList.remove('hidden');
+  list.classList.toggle('hidden', !devs.length);
+  renderMine();
   renderNearby();
+}
+
+// The side card: just the devices you've said are yours (not everything this computer has ever paired with).
+function renderMine(){
+  const mine = [...S.audio_devices.filter(d => d.mine), ...(S.other_devices || []).filter(d => d.mine)];
+  const audio = ['headphones','earbuds','speaker'];
+  $('#mineList').innerHTML = mine.length ? mine.map(d => {
+    const isAudio = audio.includes(d.kind);
+    const st = d.active ? '<i class="dot green"></i>Playing' : d.connected ? '<i class="dot green"></i>Connected' : 'Not connected';
+    const act = !isAudio ? '' : d.active ? '' : d.connected ? `<button class="pill" data-connect="${esc(d.id)}">Use</button>` : `<button class="pill" data-connect="${esc(d.id)}">Connect</button>`;
+    return `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
+      <div class="grow"><div class="ellipsis nm">${esc(d.label || d.name)}</div><div class="sub state">${esc(KIND_LABEL[d.kind] || 'Device')} · ${st}</div></div>${act}</div>`;
+  }).join('') : '<div class="note">None yet. Pick yours from the devices this computer has paired with.</div>';
+  $('#mineEdit').textContent = mine.length ? 'Add or rename' : 'Choose yours';
 }
 
 let scanning = false;
@@ -483,7 +503,7 @@ async function loadMyDevices(){
         <div class="acts">${action(d)}</div></div>
       <div class="alias"><input class="input" data-alias="${esc(d.id)}" placeholder="Name friends use, e.g. ${esc(r.me)}’s ${esc((KIND_LABEL[d.kind] || 'device').toLowerCase())}" value="${esc(d.alias||'')}" aria-label="Name friends use"><button class="pill" data-save-alias="${esc(d.id)}">Save</button><button class="pill ghost" data-mine="${esc(d.id)}" data-off="1" title="Not mine">Remove</button></div>
     </div>`).join('')
-    : `<div class="note">None yet. Pick yours from “Paired with this computer” below.</div>`;
+    : `<div class="note">None yet. Pick yours from the list below.</div>`;
   // Everything paired: connect/disconnect, and "This is mine" to add it to Your devices.
   const rest = r.devices.filter(d => !d.mine);
   $('#btDevices').innerHTML = rest.length ? rest.map(d => `<div class="devrow"><div class="icon sm">${kindIcon(d.kind)}</div>
