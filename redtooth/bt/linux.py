@@ -49,10 +49,79 @@ class LinuxBluetooth(BluetoothPlatform):
     async def paired(self) -> list[Device]:
         return await self._list("Paired", "paired")
 
+    async def radio_state(self) -> str:
+        if not shutil.which("bluetoothctl"):
+            return "unknown"
+        code, out = await run("bluetoothctl", "show", timeout=4)
+        if "No default controller" in out or (code != 0 and "Controller" not in out):
+            return "missing"
+        return "on" if "Powered: yes" in out else "off"
+
+    def setup_issue(self) -> Optional[str]:
+        miss = [t for t, why in (("bluetoothctl", "Bluetooth (package bluez)"), ("pactl", "audio outputs (PipeWire/PulseAudio pactl)"),
+                                  ("gdbus", "sending files to phones (glib2 gdbus + bluez-obexd)")) if not shutil.which(t)]
+        if not miss:
+            return None
+        return f"Some tools aren't installed ({', '.join(miss)}). Run: sudo apt install bluez bluez-obexd pulseaudio-utils libglib2.0-bin"
+
+    def push_file(self, address: str, path: str, progress, cancel) -> None:
+        """OBEX Object Push through BlueZ's obexd over D-Bus (what GNOME's "Send files" uses)."""
+        import os
+        import subprocess
+        import time
+
+        from ..transfer.obex import ObexError
+
+        def gdbus(*args: str, timeout: float = 30) -> str:
+            r = subprocess.run(["gdbus", "call", "--session", "--dest", "org.bluez.obex", *args], capture_output=True, text=True, timeout=timeout)
+            if r.returncode != 0:
+                raise ObexError(r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "obexd error",
+                                "unreachable" if "connect" in r.stderr.lower() or "host is down" in r.stderr.lower() else "failed")
+            return r.stdout
+
+        out = gdbus("--object-path", "/org/bluez/obex", "--method", "org.bluez.obex.Client1.CreateSession", address, "{'Target': <'opp'>}", timeout=40)
+        m = re.search(r"'(/org/bluez/obex/client/session\d+)'", out)
+        if not m:
+            raise ObexError("couldn't start a Bluetooth session with the phone", "unreachable")
+        session = m.group(1)
+        try:
+            out = gdbus("--object-path", session, "--method", "org.bluez.obex.ObjectPush1.SendFile", os.path.abspath(path))
+            t = re.search(r"'(/org/bluez/obex/client/session\d+/transfer\d+)'", out)
+            if not t:
+                raise ObexError("the phone didn't accept the transfer")
+            transfer, size = t.group(1), os.path.getsize(path)
+            progress(0, "waiting")
+            while True:
+                if cancel.is_set():
+                    subprocess.run(["gdbus", "call", "--session", "--dest", "org.bluez.obex", "--object-path", transfer,
+                                    "--method", "org.bluez.obex.Transfer1.Cancel"], capture_output=True, timeout=5)
+                    raise ObexError("cancelled", "cancelled")
+                try:
+                    st = gdbus("--object-path", transfer, "--method", "org.freedesktop.DBus.Properties.GetAll", "org.bluez.obex.Transfer1", timeout=5)
+                except ObexError:
+                    st = "'Status': <'complete'>"  # the transfer object disappears when it's done
+                status = re.search(r"'Status': <'(\w+)'>", st)
+                done = re.search(r"'Transferred': <uint64 (\d+)>", st)
+                s = status.group(1) if status else "active"
+                if s == "complete":
+                    progress(size, "saved")
+                    return
+                if s == "error":
+                    raise ObexError("declined on the phone, or the connection dropped", "declined")
+                if s == "active" and done:
+                    progress(int(done.group(1)), "sending")
+                time.sleep(0.3)
+        finally:
+            subprocess.run(["gdbus", "call", "--session", "--dest", "org.bluez.obex", "--object-path", "/org/bluez/obex",
+                            "--method", "org.bluez.obex.Client1.RemoveSession", session], capture_output=True, timeout=5)
+
     async def scan(self, seconds: float = 5.0) -> list[Device]:
         await run("bluetoothctl", "--timeout", str(int(max(seconds, 2))), "scan", "on", timeout=seconds + 5)
         devs = await self._list("", "nearby")
-        return [d for d in devs if d.rssi is not None or not d.paired]
+        out = [d for d in devs if not d.paired and (d.rssi is not None)]
+        for d in out:
+            d.discoverable = True
+        return out
 
     async def pair(self, dev: Device) -> bool:
         code, out = await run("bluetoothctl", "--timeout", "25", "pair", dev.address or "", timeout=30)
@@ -62,12 +131,13 @@ class LinuxBluetooth(BluetoothPlatform):
         return ok
 
     async def connect(self, dev: Device) -> bool:
-        code, out = await run("bluetoothctl", "--timeout", "15", "connect", dev.address or "", timeout=20)
-        return "Connection successful" in out or "AlreadyConnected" in out
+        await run("bluetoothctl", "--timeout", "12", "connect", dev.address or "", timeout=16)
+        # Trust what BlueZ reports afterwards, not the command's message.
+        return (await self._info(dev.address or "", "paired")).connected
 
     async def disconnect(self, dev: Device) -> bool:
-        _, out = await run("bluetoothctl", "disconnect", dev.address or "", timeout=10)
-        return "Successful disconnected" in out or "not connected" in out.lower()
+        await run("bluetoothctl", "disconnect", dev.address or "", timeout=10)
+        return not (await self._info(dev.address or "", "paired")).connected
 
     @staticmethod
     def _sink_addr(sink: str) -> Optional[str]:
@@ -77,7 +147,7 @@ class LinuxBluetooth(BluetoothPlatform):
     async def audio_output(self) -> AudioOutput:
         code, sink = await run("pactl", "get-default-sink", timeout=3)
         if code != 0:
-            return AudioOutput("System default")
+            return AudioOutput("an output Redtooth can't read", None, "other", known=False)
         sink = sink.strip()
         addr = self._sink_addr(sink)
         name = sink
