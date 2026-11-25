@@ -95,3 +95,27 @@ async def test_iphone_gets_a_straight_answer(tmp_path):
     d.world.paired.add("bt:ip")
     r = await d.agent.ask("send the Q4 board update to my phone")
     assert not r.ok and "iPhones don't accept Bluetooth file transfers" in r.text, r.text
+
+
+async def test_audio_claim_only_after_reading_the_output(tmp_path):
+    """Connected but the OS kept playing elsewhere -> say so; output unreadable -> claim nothing."""
+    from redtooth.bt.base import AudioOutput
+
+    d = await world(tmp_path)
+    d.world.radios["bt:redmi"].auto_output = False
+    d.agent.bt.set_audio_output = lambda dev: _false()  # Windows refuses to switch
+    r = await d.agent.ask("connect to my Redmi Buds 5")
+    assert not r.ok and "still playing through" in r.text and "Audio is playing" not in r.text, r.text
+
+    d2 = await world(tmp_path / "b")
+
+    async def unreadable():
+        return AudioOutput("an output Redtooth can't read", None, "other", known=False)
+
+    d2.agent.bt.audio_output = unreadable
+    r = await d2.agent.ask("connect to my Redmi Buds 5")
+    assert "can't confirm" in r.text and "Audio is playing" not in r.text, r.text
+
+
+async def _false():
+    return False

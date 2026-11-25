@@ -15,9 +15,10 @@ class AudioOutput:
     name: str
     address: Optional[str] = None  # Bluetooth address if the output is a BT device
     transport: str = "builtin"  # builtin | bluetooth | usb | hdmi | airplay | other
+    known: bool = True  # False when the OS couldn't tell us (then nothing can be confirmed)
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "address": self.address, "transport": self.transport}
+        return {"name": self.name, "address": self.address, "transport": self.transport, "known": self.known}
 
 
 def friendly_model(name: str) -> tuple[Optional[str], Optional[str]]:
@@ -94,17 +95,30 @@ class BluetoothPlatform(ABC):
     async def set_audio_output(self, dev: Device) -> bool: ...
 
     def output_matches(self, out: AudioOutput, dev: Device) -> bool:
+        """Is this output that device? By Bluetooth address when both are known; otherwise the device's
+        name must be the output's name, or the part in brackets ("Headphones (WH-CH720N)"), exactly."""
+        if not out.known:
+            return False
         if out.address and dev.address:
             return norm_addr(out.address) == norm_addr(dev.address)
-        return bool(out.name) and (out.name.lower() in dev.name.lower() or dev.name.lower() in out.name.lower())
+        if out.transport not in ("bluetooth", "other", "airplay"):
+            return False  # built-in speakers, HDMI, USB are never a Bluetooth device
+        name = out.name.strip().lower()
+        m = re.search(r"\(([^()]+(?:\([^()]*\))?[^()]*)\)\s*$", out.name)
+        inner = m.group(1).strip().lower() if m else ""
+        names = {n.strip().lower() for n in (dev.name, dev.model, dev.alias) if n}
+        return bool(names & {name, inner}) or any(inner.removesuffix(" stereo").removesuffix(" hands-free ag audio") == n for n in names if inner)
 
-    async def verify_audio_output(self, dev: Device, timeout: float = 6.0) -> bool:
-        """Confirm the device is the active audio output; switch to it if the OS didn't."""
+    async def verify_audio_output(self, dev: Device, timeout: float = 6.0) -> Optional[bool]:
+        """Confirm the device is the active audio output; switch to it if the OS didn't.
+        True = confirmed, False = audio is somewhere else, None = the output can't be read here."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         switched = False
         while loop.time() < deadline:
             out = await self.audio_output()
+            if not out.known:
+                return None
             if self.output_matches(out, dev):
                 return True
             if not switched:
