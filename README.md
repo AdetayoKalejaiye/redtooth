@@ -122,11 +122,16 @@ Calibration reports a held-out score (tune on half the queries, score the other 
 ```
 redtooth directory --port 8790                      # one per group/household; verification codes are logged until SMS is wired up
 redtooth setup --directory http://HOST:8790         # name + phone number, verify with the code
-redtooth models fetch                               # optional: pre-download the search model (otherwise the first start does it)
-redtooth serve --open                               # panel, always-on receiver on :47800, reindex every 2 min
-redtooth install-integrations                       # Send To / context menu (Windows), Open With + Files script (Linux)
+redtooth serve --open                               # panel, always-on receiver on :47800, indexing, file-menu entries
 redtooth ask "send Daniel the deck I edited this morning"
 ```
+
+On first start `serve` downloads the search model (~120 MB, once) and adds **Send with Redtooth** to the
+file menus (`--no-integrations` to skip). Contacts: **Add contacts** in the panel takes a `.vcf`/`.csv`
+export from Google, iCloud, Outlook or Android (it offers any export already in Downloads), or add people
+by hand; macOS Contacts and Windows Outlook are read automatically. `redtooth contacts import FILE` does the
+same from the terminal. Everything platform-specific (WinRT, toasts, audio switching) installs with the base
+package.
 
 Config lives in `~/.redtooth/config.json` (contacts file, folders to index, inbox, shared devices). To make your headphones findable by friends, tap **Share** beside them in the panel. That is Daniel's step in the main flow.
 

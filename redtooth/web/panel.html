@@ -130,6 +130,18 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .indexing .bar i{display:block;height:100%;background:var(--tint)}
 .indexing.warn{color:var(--orange)}
 .hidden{display:none!important}
+.contacts .cbody{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.contacts .drop{border:1.5px dashed var(--sep);border-radius:12px;padding:12px;text-align:center;color:var(--label2);font-size:12px;transition:background .15s,border-color .15s}
+.contacts .drop.over{background:var(--tint-soft);border-color:var(--tint);color:var(--tint)}
+.contacts .drop label{color:var(--tint);font-weight:600;cursor:pointer}
+.contacts .links{font-size:11.5px;color:var(--label2);line-height:1.5}
+.contacts .links a{color:var(--tint);text-decoration:none}
+.contacts form{display:flex;gap:6px}
+.contacts input[type=text],.contacts input[type=tel]{flex:1;min-width:0;height:28px;border-radius:8px;border:0;background:var(--fill);padding:0 9px;font:inherit;color:inherit}
+.contacts .found{display:flex;flex-direction:column;gap:6px}
+.contacts .found .pill{text-align:left;justify-content:flex-start;display:flex;align-items:center}
+.contacts .note{font-size:12px}
+.sect .sub a,.sect .sub button{color:var(--tint);font-weight:600;font-size:12px}
 @media (max-width:760px){
   .stage{padding:0;display:block}
   .panel{width:100%;border-radius:0;min-height:100vh;max-height:none;padding:calc(12px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom))}
@@ -152,6 +164,22 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
         </div>
       </div>
       <div class="list" id="audioList" style="margin-top:10px"></div>
+    </section>
+
+    <section class="tile contacts hidden" id="contactsTile" aria-label="Contacts">
+      <div class="sect" style="padding:0"><h2>Add your contacts</h2><button class="pill ghost" id="contactsClose" title="Hide" aria-label="Hide">Later</button></div>
+      <div class="sub">So Redtooth knows who “Daniel” is. Contacts stay on this computer; only hashed numbers are looked up.</div>
+      <div class="cbody">
+        <div class="found" id="contactsFound"></div>
+        <div class="drop" id="contactsDrop">Drop a contacts file here or <label>choose one<input type="file" id="contactsFile" accept=".vcf,.vcard,.csv,.json,text/vcard,text/csv" hidden></label><br><span style="color:var(--label3)">.vcf or .csv from any phone or account</span></div>
+        <div class="links">Get one from
+          <a href="https://contacts.google.com/" target="_blank" rel="noopener" title="Select all › Export › vCard">Google</a> ·
+          <a href="https://www.icloud.com/contacts/" target="_blank" rel="noopener" title="Select all › Export vCard">iCloud (iPhone)</a> ·
+          <a href="https://outlook.live.com/people/" target="_blank" rel="noopener" title="Manage › Export contacts">Outlook</a> ·
+          Android: Contacts › Fix &amp; manage › Export to file</div>
+        <form id="contactsAdd" autocomplete="off"><input type="text" name="name" placeholder="Name" aria-label="Name"><input type="tel" name="phone" placeholder="Phone number" aria-label="Phone number"><button class="pill tint" type="submit">Add</button></form>
+        <div class="note sub" id="contactsNote" role="status"></div>
+      </div>
     </section>
 
     <section class="tile" aria-label="Nearby people">
@@ -304,6 +332,42 @@ function renderIndexing(st){
 
 function render(){ renderAudio(); renderPeople(); renderSelected(); renderDemo(); renderIndexing(S.indexing); }
 
+// ---------------------------------------------------------------- contacts
+let C = null, contactsOpen = null;
+async function loadContacts(){ try { C = await api.get('/api/contacts'); } catch { C = null; } renderContacts(); }
+function renderContacts(){
+  const tile = $('#contactsTile');
+  if (!C || !C.managed){ tile.classList.add('hidden'); return; }
+  const show = contactsOpen ?? (C.count === 0);
+  tile.classList.toggle('hidden', !show);
+  $('#contactsTile h2').textContent = C.count ? `Contacts · ${C.count}` : 'Add your contacts';
+  $('#contactsClose').textContent = C.count ? 'Done' : 'Later';
+  $('#contactsFound').innerHTML = (C.exports||[]).map(x => `<button class="pill" data-import-path="${esc(x.path)}">Import ${esc(x.name)} · ${x.count} ${x.count===1?'person':'people'}</button>`).join('');
+  $('#nearbySub').innerHTML = C.count ? `Drop a file on someone to send it · <button id="contactsOpen">${C.count} ${C.count===1?'contact':'contacts'}</button>` : `<button id="contactsOpen">Add contacts</button>`;
+}
+function contactsNote(t, bad){ const n = $('#contactsNote'); n.textContent = t; n.style.color = bad ? 'var(--red)' : ''; }
+async function importContacts(file){
+  contactsNote('Importing…');
+  const fd = new FormData(); fd.append('file', file, file.name);
+  const r = await (await fetch('/api/contacts/import',{method:'POST',body:fd,headers:{'X-Redtooth':'1'}})).json();
+  afterContacts(r);
+}
+function afterContacts(r){
+  if (!r.ok){ contactsNote(r.error || 'That didn’t work.', true); return; }
+  contactsNote(r.added != null ? `Added ${r.added} ${r.added===1?'person':'people'} · ${r.count} in total` : `Saved · ${r.count} in total`);
+  loadContacts(); refresh();
+}
+$('#contactsFile').addEventListener('change', e => { const f = e.target.files[0]; if (f) importContacts(f); e.target.value=''; });
+$('#contactsAdd').addEventListener('submit', async e => {
+  e.preventDefault(); const f = e.target;
+  const r = await api.post('/api/contacts/add',{name:f.name.value, phone:f.phone.value});
+  if (r.ok){ f.reset(); } afterContacts(r);
+});
+const cdrop = $('#contactsDrop');
+cdrop.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); cdrop.classList.add('over'); });
+cdrop.addEventListener('dragleave', () => cdrop.classList.remove('over'));
+cdrop.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); cdrop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) importContacts(f); });
+
 // ---------------------------------------------------------------- feed
 const feed = $('#feed');
 function push(el){ feed.appendChild(el); while (feed.children.length > 30) feed.firstChild.remove(); feed.parentElement.scrollTop = 1e9; }
@@ -380,14 +444,20 @@ document.addEventListener('click', async e => {
   else if (b.dataset.peer){ api.post('/api/demo/peer-accept',{id:b.dataset.peer, accept:b.dataset.accept==='1'}); }
   else if (b.dataset.incoming){ api.post('/api/incoming/'+b.dataset.incoming,{accept:b.dataset.accept==='1'}); }
   else if (b.dataset.chip){ ask(b.dataset.chip); }
+  else if (b.dataset.importPath){ b.disabled = true; contactsNote('Importing…'); afterContacts(await api.post('/api/contacts/import',{path:b.dataset.importPath})); }
+  else if (b.id === 'contactsOpen'){ contactsOpen = true; renderContacts(); }
+  else if (b.id === 'contactsClose'){ contactsOpen = false; renderContacts(); }
 });
 $('#askForm').addEventListener('submit', e => { e.preventDefault(); const v = $('#ask').value; $('#ask').value=''; ask(v); });
 
 // Drag a file onto a person to send it.
 document.addEventListener('dragover', e => { const p = e.target.closest('.person'); if (p){ e.preventDefault(); p.classList.add('drop'); } });
 document.addEventListener('dragleave', e => { const p = e.target.closest('.person'); if (p) p.classList.remove('drop'); });
+document.addEventListener('dragover', e => { if (!e.target.closest('.person')) e.preventDefault(); });
 document.addEventListener('drop', async e => {
-  const p = e.target.closest('.person'); if (!p) return; e.preventDefault(); p.classList.remove('drop');
+  const p = e.target.closest('.person');
+  if (!p){ e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && /\.(vcf|vcard|csv)$/i.test(f.name) && C && C.managed){ contactsOpen = true; renderContacts(); importContacts(f); } return; }
+  e.preventDefault(); p.classList.remove('drop');
   const f = e.dataTransfer.files[0]; if (!f) return;
   const fd = new FormData(); fd.append('file', f);
   await fetch('/api/stage',{method:'POST',body:fd,headers:{'X-Redtooth':'1'}});
@@ -450,6 +520,7 @@ function onEvent(kind, d){
 
 (async () => {
   await refresh();
+  loadContacts();
   api.events(onEvent);
   const share = new URLSearchParams(location.search).get('share');
   if (share){ const r = await api.post('/api/select',{path:share}); replyMsg(r); refresh(); history.replaceState(null,'','/'); }

@@ -11,17 +11,12 @@ DEFAULT_COUNTRY_CODE = "1"
 
 
 def normalize_phone(raw: str, default_cc: str = DEFAULT_COUNTRY_CODE) -> str:
-    """Return an E.164-style number (+15550142). Good enough for matching;
-    swap in `phonenumbers` for full international parsing."""
+    """Return an E.164-style number (+15550142000).
+
+    Deliberately simple and identical on every platform (desktop, Android, iOS): phone-number
+    lookups hash this string, so two devices must normalize the same number the same way."""
     if not raw:
         return ""
-    try:  # optional, more accurate
-        import phonenumbers  # type: ignore
-
-        n = phonenumbers.parse(raw, None if raw.strip().startswith("+") else "US")
-        return phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
-    except Exception:
-        pass
     plus = raw.strip().startswith("+")
     digits = re.sub(r"\D", "", raw)
     if plus:
