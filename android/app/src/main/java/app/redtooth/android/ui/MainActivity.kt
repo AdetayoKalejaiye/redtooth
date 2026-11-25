@@ -1,0 +1,278 @@
+package app.redtooth.android.ui
+
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.speech.RecognizerIntent
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.redtooth.android.Graph
+import app.redtooth.android.notify.Notifications
+import app.redtooth.core.Device
+import app.redtooth.core.FileHit
+import app.redtooth.core.IncomingOffer
+import app.redtooth.core.Person
+import app.redtooth.core.Reply
+import app.redtooth.core.Transfer
+
+class MainActivity : ComponentActivity() {
+    private val vm: PanelViewModel by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        handle(intent)
+        setContent {
+            val dark = isSystemInDarkTheme()
+            MaterialTheme(colorScheme = if (dark) dynamicDarkColorSchemeOr() else dynamicLightColorSchemeOr()) {
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
+                    val s by vm.state.collectAsStateWithLifecycle()
+                    if (!s.registered) Onboarding(vm, s) else Panel(vm, s)
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); handle(intent) }
+
+    private fun handle(i: Intent?) {
+        i?.getStringExtra(EXTRA_SELECT)?.let { vm.select(Uri.parse(it)) }
+    }
+
+    @Composable private fun dynamicLightColorSchemeOr() = if (Build.VERSION.SDK_INT >= 31) dynamicLightColorScheme(LocalContext.current) else lightColorScheme()
+    @Composable private fun dynamicDarkColorSchemeOr() = if (Build.VERSION.SDK_INT >= 31) dynamicDarkColorScheme(LocalContext.current) else darkColorScheme()
+
+    companion object { const val EXTRA_SELECT = "select_uri" }
+}
+
+private val PERMISSIONS = buildList {
+    add(Manifest.permission.READ_CONTACTS)
+    if (Build.VERSION.SDK_INT >= 31) { add(Manifest.permission.BLUETOOTH_SCAN); add(Manifest.permission.BLUETOOTH_CONNECT) } else add(Manifest.permission.ACCESS_FINE_LOCATION)
+    if (Build.VERSION.SDK_INT >= 33) { add(Manifest.permission.NEARBY_WIFI_DEVICES); add(Manifest.permission.POST_NOTIFICATIONS); add(Manifest.permission.READ_MEDIA_IMAGES); add(Manifest.permission.READ_MEDIA_VIDEO) }
+}.toTypedArray()
+
+@Composable
+fun Panel(vm: PanelViewModel, s: PanelState) {
+    val ctx = LocalContext.current
+    val transfers by Graph.transfers.collectAsStateWithLifecycle()
+    val offers by Graph.offers.collectAsStateWithLifecycle()
+    val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { vm.refresh() }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { it?.let(vm::addFolder) }
+    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(vm::select) }
+    val dictate = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let(vm::ask)
+    }
+    LaunchedEffect(Unit) { perms.launch(PERMISSIONS) }
+    var text by remember { mutableStateOf("") }
+    val list = rememberLazyListState()
+    LaunchedEffect(s.feed.size) { if (s.feed.isNotEmpty()) list.animateScrollToItem(list.layoutInfo.totalItemsCount) }
+
+    Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        AudioCard(s, onConnect = vm::connect, onShare = vm::toggleShare, openSettings = { ctx.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) })
+        PeopleCard(s.people, onSend = { p -> if (s.selected == null) { vm.sendAfterPick = p; pickFile.launch(arrayOf("*/*")) } else vm.sendTo(p) })
+        s.selected?.let { SelectedFile(it) }
+        val indexing by produceState(Graph.files.indexing()) { while (true) { value = Graph.files.indexing(); kotlinx.coroutines.delay(1000) } }
+        if (!s.hasFolders) AssistChip(onClick = { pickFolder.launch(null) }, label = { Text("Choose folders Redtooth can search") }, leadingIcon = { Icon(Icons.Default.FolderOpen, null) })
+        else if (!indexing.complete) Text("Indexing · ${"%,d".format(indexing.done)} of ${"%,d".format(indexing.queued)} files", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyColumn(Modifier.weight(1f), state = list, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(offers.values.filter { it.status == "waiting" }) { o -> OfferCard(o, vm::respond) }
+            items(s.feed) { item ->
+                when (item) {
+                    is FeedItem.User -> UserBubble(item.text)
+                    is FeedItem.Agent -> ReplyCard(item.reply, transfers[item.reply.transferId], vm)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            TextField(text, { text = it }, Modifier.weight(1f), placeholder = { Text("Search or ask") }, singleLine = true,
+                colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
+            IconButton(onClick = { dictate.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)) }) { Icon(Icons.Default.Mic, "Dictate") }
+            FilledIconButton(onClick = { vm.ask(text); text = "" }, enabled = text.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.Send, "Go") }
+        }
+    }
+}
+
+@Composable
+private fun AudioCard(s: PanelState, onConnect: (Device) -> Unit, onShare: (Device) -> Unit, openSettings: () -> Unit) {
+    ElevatedCard(shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                    Icon(if (s.audioIsBluetooth) Icons.Default.Headphones else Icons.Default.VolumeUp, null, tint = MaterialTheme.colorScheme.onPrimary)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Audio output", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(s.audioOutput, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(s.busy ?: if (s.audioIsBluetooth) "Connected" else "This phone", style = MaterialTheme.typography.labelMedium,
+                        color = if (s.busy != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            s.audioDevices.filter { it.name != s.audioOutput }.take(4).forEach { d ->
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (d.kind == "speaker") Icons.Default.Speaker else Icons.Default.Headphones, null, Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(d.label(), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                        val owner = d.ownerName?.takeIf { it != Graph.settings.name }?.substringBefore(' ')?.let { "$it's · " } ?: ""
+                        Text(owner + if (d.connected) "Connected" else if (d.paired) "Paired" else "Remembered", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (d.paired && (d.ownerName == null || d.ownerName == Graph.settings.name)) {
+                        TextButton(onClick = { onShare(d) }) { Text(if (d.id in s.sharedIds) "Shared" else "Share") }
+                    }
+                    FilledTonalButton(onClick = { onConnect(d) }) { Text("Connect") }
+                }
+            }
+            if (s.busy == "Not connected") TextButton(onClick = openSettings) { Text("Open Bluetooth settings") }
+        }
+    }
+}
+
+@Composable
+private fun PeopleCard(people: List<Person>, onSend: (Person) -> Unit) {
+    ElevatedCard(shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Nearby", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            if (people.isEmpty()) Text("No one nearby yet", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(people) { p ->
+                    Column(Modifier.width(72.dp).clip(RoundedCornerShape(16.dp)).clickable { onSend(p) }.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Box(Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiaryContainer), contentAlignment = Alignment.Center) {
+                                Text(p.name.split(" ").take(2).joinToString("") { it.take(1) }.uppercase(), fontWeight = FontWeight.SemiBold)
+                            }
+                            if (p.nearby) Box(Modifier.size(12.dp).clip(CircleShape).background(Color(0xFF34C759)))
+                        }
+                        Text(p.first, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                        Text("Send file", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable private fun SelectedFile(f: FileHit) = OutlinedCard(shape = RoundedCornerShape(16.dp)) {
+    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Description, null)
+        Spacer(Modifier.width(10.dp))
+        Column { Text("Selected", style = MaterialTheme.typography.labelSmall); Text(f.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    }
+}
+
+@Composable private fun UserBubble(text: String) = Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+    Text(text, Modifier.clip(RoundedCornerShape(18.dp, 18.dp, 4.dp, 18.dp)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 14.dp, vertical = 8.dp), color = MaterialTheme.colorScheme.onPrimary)
+}
+
+@Composable
+private fun ReplyCard(r: Reply, t: Transfer?, vm: PanelViewModel) {
+    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(r.text)
+            r.question?.let { q ->
+                q.options.forEach { o ->
+                    val yes = o.id == "yes"
+                    (if (yes) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors()).let { colors ->
+                        Button(onClick = { vm.answer(q, o.id, o.label) }, colors = colors, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(o.label, fontWeight = FontWeight.SemiBold)
+                                if (o.detail.isNotEmpty()) Text(o.detail, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+            }
+            if (r.question == null && r.transferId == null) r.files.take(3).forEach { f ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.InsertDriveFile, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
+                    Column { Text(f.name, fontWeight = FontWeight.Medium); if (f.snippet.isNotEmpty()) Text(f.snippet, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                }
+            }
+            t?.let { TransferRow(it, vm::cancel) }
+            val ms = r.timings["find_match_ms"] ?: r.timings["find_device_ms"]
+            if (ms != null) Text("Match ${"%.0f".format(ms)} ms" + (r.timings["connect_ms"]?.let { " · Connect ${"%.0f".format(it)} ms" } ?: ""), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun TransferRow(t: Transfer, cancel: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(t.label, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge,
+                color = when (t.status) { "saved" -> Color(0xFF248A3D); "declined", "failed" -> MaterialTheme.colorScheme.error; else -> MaterialTheme.colorScheme.primary })
+            if (t.status in setOf("waiting", "sending", "preparing", "interrupted")) TextButton(onClick = { cancel(t.id) }) { Text("Cancel") }
+        }
+        LinearProgressIndicator(progress = { if (t.status == "saved") 1f else if (t.size > 0) t.sent.toFloat() / t.size else 0f }, Modifier.fillMaxWidth())
+        val tm = t.timings
+        if (tm.containsKey("accept_to_first_byte_ms")) Text("${t.route?.kind?.replace('_', ' ') ?: ""} · Accept → first byte ${"%.0f".format(tm["accept_to_first_byte_ms"])} ms · → saved ${"%.0f".format(tm["first_byte_to_saved_ms"])} ms",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun OfferCard(o: IncomingOffer, respond: (String, Boolean) -> Unit) = Card(shape = RoundedCornerShape(18.dp)) {
+    Column(Modifier.padding(14.dp)) {
+        Text("${o.senderName} wants to send you ${o.name}", fontWeight = FontWeight.SemiBold)
+        Text(Notifications.human(o.size), style = MaterialTheme.typography.labelSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+            OutlinedButton(onClick = { respond(o.id, false) }, Modifier.weight(1f)) { Text("Decline") }
+            Button(onClick = { respond(o.id, true) }, Modifier.weight(1f)) { Text("Accept") }
+        }
+    }
+}
+
+@Composable
+fun Onboarding(vm: PanelViewModel, s: PanelState) {
+    var name by remember { mutableStateOf(Graph.settings.name) }
+    var phone by remember { mutableStateOf(Graph.settings.phone) }
+    var dir by remember { mutableStateOf(Graph.settings.directoryUrl) }
+    var code by remember { mutableStateOf("") }
+    Column(Modifier.fillMaxSize().systemBarsPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Redtooth", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text("Friends find your devices by your phone number. We'll text you a code to confirm it's yours.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(name, { name = it }, label = { Text("Your name") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(phone, { phone = it }, label = { Text("Phone number") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(dir, { dir = it }, label = { Text("Directory") }, modifier = Modifier.fillMaxWidth(), supportingText = { Text("Your group's Redtooth directory") })
+        if (!s.verificationSent) Button(onClick = { vm.requestCode(name, phone, dir) }, enabled = name.isNotBlank() && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Send code") }
+        else {
+            OutlinedTextField(code, { code = it }, label = { Text("Code") }, modifier = Modifier.fillMaxWidth())
+            Button(onClick = { vm.verify(code) }, enabled = code.length >= 4, modifier = Modifier.fillMaxWidth()) { Text("Verify") }
+        }
+        s.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}

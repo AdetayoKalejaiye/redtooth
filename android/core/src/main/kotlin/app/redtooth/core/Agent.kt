@@ -54,6 +54,13 @@ class Agent(
     @Volatile private var watch: Thread? = null
     private var forcedPerson: Person? = null
 
+    /** Extra way to reach a device when no LAN endpoint answers (Android: Wi-Fi Aware). */
+    @Volatile var routeFallback: ((Device) -> Endpoint?)? = null
+
+    init {
+        sender.route = { routeFor(it) }
+    }
+
     private val destOrder = mapOf("phone" to 0, "laptop" to 1, "tablet" to 2, "desktop" to 3)
     private val kindNoun = mapOf("presentation" to "deck", "document" to "document", "spreadsheet" to "spreadsheet", "pdf" to "PDF", "image" to "photo", "video" to "video")
 
@@ -67,7 +74,8 @@ class Agent(
     /** Start checking routes now; the sender awaits the same result. */
     fun prefetchRoute(d: Device): Future<Endpoint?> = routes.compute(d.id) { _, old -> if (old != null && !old.isDone) old else pool.submit(Callable { Routes.best(d) }) }!!
 
-    fun routeFor(d: Device): Endpoint? = runCatching { (routes.remove(d.id) ?: prefetchRoute(d)).get(4, TimeUnit.SECONDS) }.getOrNull() ?: Routes.best(d)
+    fun routeFor(d: Device): Endpoint? =
+        runCatching { (routes.remove(d.id) ?: prefetchRoute(d)).get(4, TimeUnit.SECONDS) }.getOrNull() ?: Routes.best(d) ?: routeFallback?.invoke(d)
 
     // ------------------------------------------------------------------ entry points
     fun ask(text: String, now: ZonedDateTime = ZonedDateTime.now()): Reply {

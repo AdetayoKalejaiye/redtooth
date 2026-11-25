@@ -306,10 +306,11 @@ class Sender(
     private val meName: String,
     private val mePhone: String,
     private val onUpdate: (Transfer) -> Unit = {},
-    private val route: (Device) -> Endpoint? = { Routes.best(it) },
+    /** How to reach a device; the Agent installs its pre-checked routes here. */
+    var route: (Device) -> Endpoint? = { Routes.best(it) },
     private val maxAttempts: Int = 8,
     /** Opens a socket to an endpoint; Android overrides this for Wi-Fi Aware networks. */
-    private val connect: (Endpoint) -> Socket = { ep -> Socket().apply { connect(InetSocketAddress(ep.host, ep.port), 5000) } },
+    var connect: (Endpoint) -> Socket = { ep -> Socket().apply { connect(InetSocketAddress(ep.host, ep.port), 5000) } },
 ) {
     val transfers = ConcurrentHashMap<String, Transfer>()
     private val threads = ConcurrentHashMap<String, Thread>()
