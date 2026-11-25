@@ -9,9 +9,12 @@ the default sender logs the code).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import secrets
 import time
+from pathlib import Path
 from typing import Awaitable, Callable, Optional, Protocol
 
 from .models import Device, Profile
@@ -32,12 +35,31 @@ class Directory(Protocol):
 class InMemoryDirectory:
     """Directory state. Used directly in tests/demo and behind the HTTP API."""
 
-    def __init__(self) -> None:
+    def __init__(self, path: Optional[str | Path] = None) -> None:
         self.profiles: dict[str, Profile] = {}  # by phone hash
         self.tokens: dict[str, str] = {}  # token -> phone
         self.pending_codes: dict[str, tuple[str, float]] = {}
         self.inboxes: dict[str, list[dict]] = {}
         self.listeners: dict[str, list[NudgeHandler]] = {}
+        # With a path, registrations survive restarts (no need to set up every device again).
+        self.path = Path(path) if path else None
+        if self.path and self.path.exists():
+            try:
+                data = json.loads(self.path.read_text(encoding="utf-8"))
+                self.profiles = {h: Profile.from_dict(p) for h, p in data.get("profiles", {}).items()}
+                self.tokens = dict(data.get("tokens", {}))
+                self.inboxes = {h: list(v) for h, v in data.get("inboxes", {}).items()}
+            except Exception as e:
+                log.warning("couldn't read %s (%s); starting empty", self.path, e)
+
+    def _save(self) -> None:
+        if not self.path:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"profiles": {h: p.to_dict() for h, p in self.profiles.items()}, "tokens": self.tokens,
+                                   "inboxes": self.inboxes}), encoding="utf-8")
+        os.replace(tmp, self.path)
 
     # --- registration -----------------------------------------------------
     def start_verification(self, phone: str, sender: Callable[[str, str], None] | None = None) -> None:
@@ -63,6 +85,7 @@ class InMemoryDirectory:
             self.profiles[h] = Profile(phone=phone, name=name)
         token = secrets.token_urlsafe(24)
         self.tokens[token] = phone
+        self._save()
         return token
 
     async def register(self, phone: str, name: str) -> str:
@@ -78,6 +101,7 @@ class InMemoryDirectory:
                 d.sources.append("directory")
             d.last_seen = time.time()
         prof.devices = devices
+        self._save()
 
     async def upsert_device(self, phone: str, device: Device) -> None:
         prof = self.profiles.get(phone_hash(phone))
@@ -103,6 +127,7 @@ class InMemoryDirectory:
             return False
         msg = {"id": new_id("n_"), "at": time.time(), **payload}
         self.inboxes.setdefault(h, []).append(msg)
+        self._save()
         for fn in self.listeners.get(h, []):
             res = fn(msg)
             if asyncio.iscoroutine(res):
@@ -113,7 +138,10 @@ class InMemoryDirectory:
         self.listeners.setdefault(phone_hash(phone), []).append(fn)
 
     def drain_inbox(self, phone: str) -> list[dict]:
-        return self.inboxes.pop(phone_hash(phone), [])
+        out = self.inboxes.pop(phone_hash(phone), [])
+        if out:
+            self._save()
+        return out
 
 
 class HTTPDirectory:

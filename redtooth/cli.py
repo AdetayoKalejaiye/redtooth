@@ -206,11 +206,12 @@ async def cmd_directory(args) -> None:
     from .directory import InMemoryDirectory, directory_routes
 
     app = web.Application()
-    app.add_routes(directory_routes(InMemoryDirectory(), allow_open_register=args.open_register))
+    data = Path(args.data).expanduser() if args.data else HOME / "directory.json"
+    app.add_routes(directory_routes(InMemoryDirectory(data), allow_open_register=args.open_register))
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, args.host, args.port).start()
-    print(f"Directory on http://{args.host}:{args.port}  (codes are logged here until SMS is configured)", flush=True)
+    print(f"Directory on http://{args.host}:{args.port} · registrations kept in {data}\nVerification codes appear in this window (SMS isn't set up).", flush=True)
     await asyncio.Event().wait()
 
 
@@ -409,6 +410,7 @@ def main(argv=None) -> None:
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8790)
     p.add_argument("--open-register", action="store_true", help="skip phone verification (testing only)")
+    p.add_argument("--data", help="where registrations are kept (default ~/.redtooth/directory.json)")
     p = sub.add_parser("install-integrations", help="add Send with Redtooth to the file menus (done automatically on first serve)")
     p.add_argument("--remove", action="store_true")
     args = ap.parse_args(argv)
