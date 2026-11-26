@@ -286,18 +286,20 @@ def open_panel(url: str, home: Optional[Path] = None, view: Optional[str] = None
 
 # ----------------------------------------------------------------- the tray icon
 def tray_icon_image(size: int = 64, dot: Optional[str] = None):
-    """Red rounded square with a white Bluetooth rune; an optional status dot."""
+    """Red rounded square with the Redtooth mark (two mirrored halves facing each other); an optional status dot."""
     from PIL import Image, ImageDraw
 
     s = size * 4  # draw large, scale down for smooth edges
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     d.rounded_rectangle((0, 0, s - 1, s - 1), radius=s // 4, fill=(224, 50, 43, 255))
-    w = max(4, s // 13)
-    cx, top, bot = s * 0.48, s * 0.18, s * 0.82
-    left, right = s * 0.30, s * 0.70
-    pts = [(left, s * 0.34), (right, s * 0.64), (cx, bot), (cx, top), (right, s * 0.36), (left, s * 0.66)]
-    d.line(pts, fill="white", width=w, joint="curve")
+    w = max(4, round(s * 5.2 / 64))
+    u = s / 64  # the mark is drawn on a 64-unit grid, same as the SVG
+    for line_x, tip_x in ((18, 29), (46, 35)):
+        pts = [(line_x * u, 51 * u), (line_x * u, 13 * u), (tip_x * u, 22.5 * u), (line_x * u, 32 * u), (tip_x * u, 41.5 * u), (line_x * u, 51 * u)]
+        d.line(pts, fill="white", width=w, joint="curve")
+        for x, y in pts:
+            d.ellipse((x - w / 2, y - w / 2, x + w / 2, y + w / 2), fill="white")
     if dot:
         color = {"green": (52, 199, 89, 255), "blue": (10, 132, 255, 255), "orange": (255, 149, 0, 255)}.get(dot, (255, 255, 255, 255))
         r = s * 0.17
