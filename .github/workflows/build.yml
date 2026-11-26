@@ -1,0 +1,102 @@
+# Builds every platform on GitHub's machines. Download the results from the run's "Artifacts" section.
+#   main    → Python tests + the Windows installer (Redtooth-Setup-x.y.z.exe)
+#   android → Kotlin core tests (including live tests against the Python desktop) + an installable debug APK
+#   ios     → Swift core tests on macOS + the iOS app compiled for the simulator (no signing needed)
+# Optional: set a repository variable REDTOOTH_DIRECTORY (Settings › Secrets and variables › Actions › Variables)
+# to your hosted directory, e.g. https://redtooth-directory.onrender.com, so the Android build uses it.
+name: build
+
+on:
+  push:
+    branches: [main, android, ios]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    if: github.ref_name == 'main'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install . pytest pyinstaller
+      - name: Tests
+        run: python -m pytest -q
+      - name: App icon
+        run: python -c "from redtooth.desktop import tray_icon_image; tray_icon_image(256).save('packaging/redtooth.ico', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(256,256)])"
+      - name: Package (PyInstaller)
+        working-directory: packaging
+        run: pyinstaller redtooth.spec --noconfirm --distpath ../dist --workpath ../build
+      - name: Smoke test the packaged app
+        run: |
+          dist\Redtooth\redtooth.exe --help
+        shell: cmd
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) { choco install innosetup -y --no-progress }
+          $v = python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])"
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=$v" packaging\redtooth.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Redtooth-Windows-installer
+          path: dist/Redtooth-Setup-*.exe
+
+  android:
+    if: github.ref_name == 'android'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python desktop (for the live Kotlin↔Python tests)
+        run: pip install .
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Core tests
+        env:
+          REDTOOTH_PY: python
+        run: gradle -p android :core:test
+      - name: Debug APK
+        run: gradle -p android :app:assembleDebug -PredtoothDirectory="${{ vars.REDTOOTH_DIRECTORY }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Redtooth-Android-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+
+  apple:
+    if: github.ref_name == 'ios'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python desktop (for the live Swift↔Python tests)
+        run: pip install .
+      - name: Swift core tests
+        working-directory: ios/Packages/RedtoothCore
+        env:
+          REDTOOTH_PY: python
+        run: swift test
+      - name: Generate the Xcode project
+        working-directory: ios
+        run: brew install xcodegen && xcodegen
+      - name: Compile the iOS app (simulator, unsigned)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Redtooth.xcodeproj -scheme Redtooth -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -40

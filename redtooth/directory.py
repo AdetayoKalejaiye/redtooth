@@ -204,6 +204,10 @@ def directory_routes(state: InMemoryDirectory, allow_open_register: bool = False
             raise web.HTTPUnauthorized()
         return phone
 
+    @routes.get("/v1/health")
+    async def health(request):
+        return web.json_response({"ok": True})
+
     @routes.post("/v1/verify/start")
     async def _start(request):
         body = await request.json()
