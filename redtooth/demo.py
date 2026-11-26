@@ -85,7 +85,9 @@ def _h(phone: str) -> str:
 
 
 async def build_demo(root: Optional[str] = None, daniel_auto_accept: float = 2.5, embedder: Optional[str] = None, radio_delay: float = 0.15) -> DemoWorld:
-    root_p = Path(root or tempfile.mkdtemp(prefix="redtooth-demo-"))
+    # Alex's files live in ".../Alex/Documents", so questions say "Alex › Documents", not a temp folder name.
+    root_p = Path(root) if root else Path(tempfile.mkdtemp(prefix="redtooth-demo-")) / "Alex"
+    root_p.mkdir(parents=True, exist_ok=True)
     make_samples(root_p)
     directory = InMemoryDirectory()
 
