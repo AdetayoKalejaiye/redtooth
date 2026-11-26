@@ -15,7 +15,9 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         // Directory used until the user sets their own in onboarding.
-        buildConfigField("String", "DEFAULT_DIRECTORY", "\"http://10.0.2.2:8790\"")
+        // Set with -PredtoothDirectory=https://… (the GitHub build passes your REDTOOTH_DIRECTORY variable).
+        val directory = (project.findProperty("redtoothDirectory") as String?)?.takeIf { it.isNotBlank() } ?: "http://10.0.2.2:8790"
+        buildConfigField("String", "DEFAULT_DIRECTORY", "\"$directory\"")
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
