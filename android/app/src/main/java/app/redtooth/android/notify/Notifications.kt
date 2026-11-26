@@ -34,7 +34,7 @@ object Notifications {
     private fun openPanel(ctx: Context) = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
 
     fun service(ctx: Context): Notification = Notification.Builder(ctx, CH_SERVICE)
-        .setSmallIcon(R.drawable.ic_redtooth).setContentTitle("Redtooth is ready to receive").setContentIntent(openPanel(ctx)).setOngoing(true).build()
+        .setSmallIcon(R.drawable.ic_redtooth_mono).setContentTitle("Redtooth is ready to receive").setContentIntent(openPanel(ctx)).setOngoing(true).build()
 
     private fun action(ctx: Context, offerId: String, accept: Boolean): Notification.Action {
         val i = Intent(ctx, OfferActionReceiver::class.java).putExtra("id", offerId).putExtra("accept", accept)
@@ -43,7 +43,7 @@ object Notifications {
     }
 
     fun showOffer(ctx: Context, o: IncomingOffer) {
-        val n = Notification.Builder(ctx, CH_OFFERS).setSmallIcon(R.drawable.ic_redtooth)
+        val n = Notification.Builder(ctx, CH_OFFERS).setSmallIcon(R.drawable.ic_redtooth_mono)
             .setContentTitle("${o.senderName} wants to send you a file").setContentText("${o.name} · ${human(o.size)}")
             .setCategory(Notification.CATEGORY_MESSAGE).setContentIntent(openPanel(ctx))
             .addAction(action(ctx, o.id, false)).addAction(action(ctx, o.id, true)).setAutoCancel(false).build()
@@ -52,13 +52,13 @@ object Notifications {
 
     fun progress(ctx: Context, o: IncomingOffer) {
         val pct = if (o.size > 0) (100 * o.received / o.size).toInt() else 0
-        nm(ctx).notify(idFor(o.id), Notification.Builder(ctx, CH_OFFERS).setSmallIcon(R.drawable.ic_redtooth).setOnlyAlertOnce(true)
+        nm(ctx).notify(idFor(o.id), Notification.Builder(ctx, CH_OFFERS).setSmallIcon(R.drawable.ic_redtooth_mono).setOnlyAlertOnce(true)
             .setContentTitle("Receiving ${o.name}").setContentText("From ${o.senderName}").setProgress(100, pct, false).setOngoing(true).build())
     }
 
     fun saved(ctx: Context, o: IncomingOffer, uri: Uri?) {
         val view = uri?.let { PendingIntent.getActivity(ctx, idFor(o.id), Intent(Intent.ACTION_VIEW, it).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), PendingIntent.FLAG_IMMUTABLE) }
-        nm(ctx).notify(idFor(o.id), Notification.Builder(ctx, CH_OFFERS).setSmallIcon(R.drawable.ic_redtooth).setOnlyAlertOnce(true)
+        nm(ctx).notify(idFor(o.id), Notification.Builder(ctx, CH_OFFERS).setSmallIcon(R.drawable.ic_redtooth_mono).setOnlyAlertOnce(true)
             .setContentTitle("Saved ${o.name}").setContentText("From ${o.senderName} · in Downloads/Redtooth").setContentIntent(view ?: openPanel(ctx)).setAutoCancel(true).build())
     }
 
@@ -66,7 +66,7 @@ object Notifications {
 
     fun nudge(ctx: Context, msg: Map<String, Any?>) {
         val text = msg["text"] as? String ?: "${msg["from"]} wants to connect to your ${msg["kind"] ?: "headphones"}."
-        nm(ctx).notify(2, Notification.Builder(ctx, CH_NUDGES).setSmallIcon(R.drawable.ic_redtooth).setContentTitle(text)
+        nm(ctx).notify(2, Notification.Builder(ctx, CH_NUDGES).setSmallIcon(R.drawable.ic_redtooth_mono).setContentTitle(text)
             .setContentText("Hold the power button until the light flashes to enter pairing mode.").setContentIntent(openPanel(ctx)).setAutoCancel(true).build())
     }
 

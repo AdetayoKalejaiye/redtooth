@@ -1,5 +1,6 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFE0322B" android:pathData="M6,2h12a4,4 0,0 1,4 4v12a4,4 0,0 1,-4 4H6a4,4 0,0 1,-4 -4V6a4,4 0,0 1,4 -4z" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M8.5,8l7,6 -3.5,3V7l3.5,3 -7,6" />
+<!-- App icon: red rounded square with the Redtooth mark (two mirrored halves facing each other). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="64" android:viewportHeight="64">
+    <path android:fillColor="#FFE0322B" android:pathData="M16,0h32a16,16 0,0 1,16 16v32a16,16 0,0 1,-16 16H16a16,16 0,0 1,-16 -16V16a16,16 0,0 1,16 -16z" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="5.2" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M18,51V13l11,9.5L18,32l11,9.5L18,51zM46,51V13l-11,9.5L46,32l-11,9.5L46,51z" />
 </vector>

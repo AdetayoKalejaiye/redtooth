@@ -63,7 +63,7 @@
         </receiver>
 
         <!-- Quick Settings tile: current audio output; tap opens the panel -->
-        <service android:name=".ui.RedtoothTileService" android:exported="true" android:label="Redtooth" android:icon="@drawable/ic_redtooth"
+        <service android:name=".ui.RedtoothTileService" android:exported="true" android:label="Redtooth" android:icon="@drawable/ic_redtooth_mono"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
