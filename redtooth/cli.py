@@ -486,7 +486,9 @@ def _install_windows(remove: bool = False) -> None:
         tray_icon_image(256).save(ico, sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (256, 256)])
     except Exception as e:
         logging.info("icon: %s", e)
-    pyw = background_command()[0]
+    from .desktop import FROZEN, launcher
+    launch = launcher(windowed=True)
+    pyw, pre = launch[0], " ".join(launch[1:])
     (appdata / "Microsoft/Windows/SendTo/Redtooth.cmd").unlink(missing_ok=True)  # replaced by a shortcut (no console flash)
 
     def shortcut(path: Path, args: str, desc: str) -> None:
@@ -495,13 +497,14 @@ def _install_windows(remove: bool = False) -> None:
         subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], check=False, capture_output=True,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
-    shortcut(start_lnk, "-m redtooth.cli start", "Redtooth")
-    shortcut(sendto_lnk, "-m redtooth.cli share", "Send with Redtooth")
+    if not FROZEN:  # the installer makes the Start menu entry for the installed app
+        shortcut(start_lnk, f"{pre} start".strip(), "Redtooth")
+    shortcut(sendto_lnk, f"{pre} share".strip(), "Send with Redtooth")
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key) as k:
         winreg.SetValueEx(k, None, 0, winreg.REG_SZ, "Send with Redtooth")
         winreg.SetValueEx(k, "Icon", 0, winreg.REG_SZ, str(ico))
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key + r"\command") as k:
-        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, f'"{pyw}" -m redtooth.cli share "%1"')
+        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, f'"{pyw}" {pre} share "%1"'.replace("  ", " "))
 
 
 def cmd_install(args) -> None:
@@ -509,6 +512,8 @@ def cmd_install(args) -> None:
     if getattr(args, "remove", False):
         if sys.platform.startswith("win"):
             _install_windows(remove=True)
+            from .desktop import set_autostart
+            set_autostart(False)
         else:
             for f in (Path.home() / ".local/share/applications/redtooth-share.desktop", Path.home() / ".local/share/applications/redtooth.desktop",
                       Path.home() / ".local/share/nautilus/scripts/Send with Redtooth"):
@@ -637,6 +642,36 @@ def cmd_stop(args) -> None:
             stopped = True
     if not stopped:
         print("Redtooth isn't running." if state == "free" else _port_busy_message(args.port))
+
+
+def launch_app(port: int = DEFAULT_PORT) -> None:
+    """What the installed app does when you open it: set up once, then run with the tray and open the panel."""
+    from . import desktop
+
+    url = f"http://127.0.0.1:{port}/"
+    state = desktop.port_state(port)
+    if state == "ours":
+        open_panel(url)
+        return
+    if state == "other":
+        desktop.message_box("Redtooth", _port_busy_message(port))
+        return
+    if not load_config().get("phone"):
+        # First run: the short setup (name, country, phone) in a terminal window, then carry on.
+        subprocess.run([*desktop.launcher(windowed=False), "setup"], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        if not load_config().get("phone"):
+            desktop.message_box("Redtooth", "Setup wasn't finished. Open Redtooth again to finish it.")
+            return
+    main(["serve", "--open", "--background", "--port", str(port)])
+
+
+def app_main(argv=None) -> None:
+    """Entry for the packaged app: RedtoothApp.exe with no arguments opens the app; anything else is the CLI."""
+    argv = sys.argv[1:] if argv is None else argv
+    if argv:
+        main(argv)
+    else:
+        launch_app()
 
 
 def main(argv=None) -> None:

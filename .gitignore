@@ -16,3 +16,7 @@ ios/**/*.xcodeproj/
 ios/**/xcuserdata/
 ios/**/.build/
 ios/**/DerivedData/
+
+packaging/redtooth.ico
+build/
+dist/

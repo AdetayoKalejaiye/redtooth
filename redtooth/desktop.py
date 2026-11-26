@@ -26,14 +26,27 @@ PANEL_W, PANEL_H = 400, 700
 
 
 # ----------------------------------------------------------------- how to launch ourselves
-def background_command(extra: tuple[str, ...] = ()) -> list[str]:
-    """Run Redtooth with no console window (pythonw on Windows)."""
+FROZEN = bool(getattr(sys, "frozen", False))  # running from the installed app (PyInstaller), not from Python
+
+
+def launcher(windowed: bool = True) -> list[str]:
+    """The command that runs Redtooth's CLI: the installed app's own exe, or this Python with -m."""
+    if FROZEN:
+        d = Path(sys.executable).parent
+        if sys.platform.startswith("win"):
+            return [str(d / ("RedtoothApp.exe" if windowed else "redtooth.exe"))]
+        return [sys.executable]
     exe = sys.executable
-    if sys.platform.startswith("win"):
+    if windowed and sys.platform.startswith("win"):
         w = Path(exe).with_name("pythonw.exe")
         if w.exists():
             exe = str(w)
-    return [exe, "-m", "redtooth.cli", "serve", "--background", *extra]
+    return [exe, "-m", "redtooth.cli"]
+
+
+def background_command(extra: tuple[str, ...] = ()) -> list[str]:
+    """Run Redtooth with no console window (pythonw on Windows, RedtoothApp.exe when installed)."""
+    return [*launcher(windowed=True), "serve", "--background", *extra]
 
 
 def start_detached(cmd: list[str], log_path: Optional[Path] = None) -> subprocess.Popen:

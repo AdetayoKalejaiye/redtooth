@@ -1,0 +1,15 @@
+# The shared Redtooth directory on Render (Dashboard › New › Blueprint, pick this repo).
+# Starter plan + a disk: registrations survive restarts. (A Free web service has no disk, so everyone would
+# have to verify again after every restart or deploy.)
+services:
+  - type: web
+    name: redtooth-directory
+    runtime: python
+    plan: starter
+    buildCommand: pip install .
+    startCommand: redtooth directory --host 0.0.0.0 --port $PORT --data /var/data/directory.json
+    healthCheckPath: /v1/health
+    disk:
+      name: redtooth-data
+      mountPath: /var/data
+      sizeGB: 1
