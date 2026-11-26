@@ -19,6 +19,7 @@ targets:
   Redtooth:
     type: application
     platform: iOS
+    scheme: {}  # so xcodebuild -scheme Redtooth works (the GitHub build uses it)
     sources: [App]
     dependencies:
       - package: RedtoothCore

@@ -19,3 +19,7 @@ ios/**/DerivedData/
 ios/*.xcodeproj/
 ios/**/.build/
 ios/**/.swiftpm/
+
+packaging/redtooth.ico
+build/
+dist/
