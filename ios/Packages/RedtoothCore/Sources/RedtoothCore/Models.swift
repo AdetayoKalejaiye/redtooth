@@ -6,14 +6,15 @@ public let appKinds: Set<String> = ["phone", "laptop", "desktop", "tablet"]
 
 public typealias JSONObject = [String: Any]
 
+// Public: the app reads JSON with these too.
 extension Dictionary where Key == String, Value == Any {
-    func str(_ k: String) -> String? { self[k] as? String }
-    func int(_ k: String) -> Int? { (self[k] as? NSNumber)?.intValue }
-    func int64(_ k: String) -> Int64? { (self[k] as? NSNumber)?.int64Value }
-    func dbl(_ k: String) -> Double? { (self[k] as? NSNumber)?.doubleValue }
-    func bool(_ k: String) -> Bool? { self[k] as? Bool }
-    func obj(_ k: String) -> JSONObject? { self[k] as? JSONObject }
-    func arr(_ k: String) -> [Any]? { self[k] as? [Any] }
+    public func str(_ k: String) -> String? { self[k] as? String }
+    public func int(_ k: String) -> Int? { (self[k] as? NSNumber)?.intValue }
+    public func int64(_ k: String) -> Int64? { (self[k] as? NSNumber)?.int64Value }
+    public func dbl(_ k: String) -> Double? { (self[k] as? NSNumber)?.doubleValue }
+    public func bool(_ k: String) -> Bool? { self[k] as? Bool }
+    public func obj(_ k: String) -> JSONObject? { self[k] as? JSONObject }
+    public func arr(_ k: String) -> [Any]? { self[k] as? [Any] }
 }
 
 public struct Endpoint: Hashable, Sendable {
