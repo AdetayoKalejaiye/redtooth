@@ -321,7 +321,8 @@ public final class Sender: @unchecked Sendable {
         return t
     }
 
-    public func wait(_ id: String) async { lock.lock(); let task = tasks[id]; lock.unlock(); await task?.value }
+    private func task(_ id: String) -> Task<Void, Never>? { lock.lock(); defer { lock.unlock() }; return tasks[id] }
+    public func wait(_ id: String) async { await task(id)?.value }
 
     public func cancel(_ id: String) {
         guard let t = transfer(id), !["saved", "declined", "failed", "cancelled"].contains(t.status) else { return }
