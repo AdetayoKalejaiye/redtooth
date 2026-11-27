@@ -85,6 +85,20 @@ class InMemoryDirectory:
         del self.pending_codes[phone]
         return self._issue(phone, name)
 
+    def claim(self, phone: str, name: str) -> Optional[str]:
+        """Register a number nobody has registered yet (first claim wins). None if it's taken."""
+        phone = normalize_phone(phone)
+        if phone_hash(phone) in self.profiles:
+            return None
+        return self._issue(phone, name)
+
+    def link_code(self, phone: str) -> str:
+        """A one-time code (10 min) a registered device shows so you can add another device of yours."""
+        phone = normalize_phone(phone)
+        code = f"{secrets.randbelow(10**6):06d}"
+        self.pending_codes[phone] = (code, time.time() + 600)
+        return code
+
     def _issue(self, phone: str, name: str) -> str:
         h = phone_hash(phone)
         prof = self.profiles.get(h)
@@ -178,10 +192,14 @@ class HTTPDirectory:
         self.token = res["token"]
         return self.token
 
-    async def register(self, phone: str, name: str) -> str:  # only allowed by open/demo directories
+    async def register(self, phone: str, name: str) -> str:  # directories without phone verification (first claim wins)
         res = await self._req("POST", "/v1/register", {"phone": phone, "name": name})
         self.token = res["token"]
         return self.token
+
+    async def link_code(self) -> str:
+        """A code for adding another device of yours (enter it in setup on that device)."""
+        return (await self._req("POST", "/v1/me/link"))["code"]
 
     async def set_devices(self, phone: str, devices: list[Device]) -> None:
         await self._req("PUT", "/v1/me/devices", {"devices": [d.to_dict() for d in devices]})
@@ -299,20 +317,35 @@ def directory_routes(state: InMemoryDirectory, allow_open_register: bool = False
         phone = normalize_phone(body["phone"])
         if not checks.allow(phone):
             raise web.HTTPTooManyRequests(text="too many tries; request a new code in a few minutes")
-        if verifier:
-            tok = state._issue(phone, body.get("name", "")) if await verifier.check(phone, str(body["code"]).strip()) else None
-        else:
-            tok = state.verify(phone, body["code"], body.get("name", ""))
+        code = str(body["code"]).strip()
+        tok = state.verify(phone, code, body.get("name", ""))  # a link code from your other device, or a logged code
+        if not tok and verifier and await verifier.check(phone, code):
+            tok = state._issue(phone, body.get("name", ""))
         if not tok:
             raise web.HTTPForbidden(text="bad code")
         return web.json_response({"token": tok})
 
+    claims = RateLimit(10, 3600)
+
     @routes.post("/v1/register")
     async def _register(request):
+        """Without phone verification: first claim wins; a taken number needs a link code from one of its devices."""
         if not allow_open_register:
             raise web.HTTPForbidden(text="verification required")
         body = await request.json()
-        return web.json_response({"token": await state.register(body["phone"], body["name"])})
+        phone = normalize_phone(body["phone"])
+        if not phone.startswith("+") or len(phone) < 8:
+            raise web.HTTPBadRequest(text="phone number needs a country code")
+        if not claims.allow(client_ip(request)):
+            raise web.HTTPTooManyRequests(text="too many registrations from here; try again later")
+        tok = state.claim(phone, body.get("name", ""))
+        if not tok:
+            raise web.HTTPConflict(text="this number is already registered; add this device with a link code from one that's set up")
+        return web.json_response({"token": tok})
+
+    @routes.post("/v1/me/link")
+    async def _link(request):
+        return web.json_response({"code": state.link_code(me(request)), "expires_in": 600})
 
     @routes.put("/v1/me/devices")
     async def _devices(request):

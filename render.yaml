@@ -7,15 +7,17 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install .
-    startCommand: redtooth directory --host 0.0.0.0 --port $PORT --data /var/data/directory.json
+    # No phone verification for now: first claim wins, extra devices join with a link code.
+    # To text codes instead: drop --open-register and set the TWILIO_* variables below.
+    startCommand: redtooth directory --host 0.0.0.0 --port $PORT --data /var/data/directory.json --open-register
     healthCheckPath: /v1/health
-    envVars:  # Render asks for these when you create the Blueprint (from your Twilio console)
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_VERIFY_SID
-        sync: false
+    # envVars:  # for texted codes later (from your Twilio console)
+    #   - key: TWILIO_ACCOUNT_SID
+    #     sync: false
+    #   - key: TWILIO_AUTH_TOKEN
+    #     sync: false
+    #   - key: TWILIO_VERIFY_SID
+    #     sync: false
     disk:
       name: redtooth-data
       mountPath: /var/data
