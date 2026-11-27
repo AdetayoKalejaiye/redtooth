@@ -273,15 +273,17 @@ async def cmd_serve(args, set_status=None) -> None:
 async def cmd_directory(args) -> None:
     from aiohttp import web
 
-    from .directory import InMemoryDirectory, directory_routes
+    from .directory import InMemoryDirectory, TwilioVerify, directory_routes
 
     app = web.Application()
     data = Path(args.data).expanduser() if args.data else HOME / "directory.json"
-    app.add_routes(directory_routes(InMemoryDirectory(data), allow_open_register=args.open_register))
+    verifier = TwilioVerify.from_env()
+    app.add_routes(directory_routes(InMemoryDirectory(data), allow_open_register=args.open_register, verifier=verifier))
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, args.host, args.port).start()
-    print(f"Directory on http://{args.host}:{args.port} · registrations kept in {data}\nVerification codes appear in this window (SMS isn't set up).", flush=True)
+    how = "texted with Twilio Verify" if verifier else "shown in this window (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SID to text them)"
+    print(f"Directory on http://{args.host}:{args.port} · registrations kept in {data}\nVerification codes are {how}.", flush=True)
     await asyncio.Event().wait()
 
 
@@ -312,16 +314,24 @@ async def cmd_setup(args) -> None:
     cfg["country"] = country
     set_country(country)
 
-    # The directory lets people find each other by phone number. One computer in the group hosts it.
+    # The directory lets people find each other by phone number: the shared one, or one a computer in the group hosts.
+    from .directory import public_directory
+
+    shared = public_directory()
     directory_url = args.directory
     if directory_url is None and not args.host:
-        print("\nThe directory is how your contacts' devices find yours. One computer in your household/group hosts it.")
-        answer = input("Address of an existing directory (like http://192.168.1.20:8790), or press Enter to host it on this computer: ").strip()
-        directory_url = answer or None
+        if shared:
+            print(f"\nThe directory is how your contacts' devices find yours. Redtooth's shared directory is {shared}.")
+            answer = input("Press Enter to use it, or type 'local' to host one on this computer (or another directory's address): ").strip()
+            directory_url = None if answer.lower() == "local" else (answer or shared)
+        else:
+            print("\nThe directory is how your contacts' devices find yours. One computer in your household/group hosts it.")
+            answer = input("Address of an existing directory (like http://192.168.1.20:8790), or press Enter to host it on this computer: ").strip()
+            directory_url = answer or None
     if directory_url and not directory_url.startswith("http"):
         directory_url = "http://" + directory_url
-    if directory_url and ":" not in directory_url.split("//", 1)[1]:
-        directory_url += ":8790"
+    if directory_url and directory_url.startswith("http://") and ":" not in directory_url.split("//", 1)[1]:
+        directory_url += ":8790"  # a computer on your network; https addresses use their normal port
 
     if not directory_url:
         state = InMemoryDirectory(HOME / "directory.json")
@@ -335,13 +345,30 @@ async def cmd_setup(args) -> None:
         cfg["host_directory"] = False
         cfg["directory"] = directory_url.rstrip("/")
         d = HTTPDirectory(cfg["directory"])
+        hosted = cfg["directory"].startswith("https://")
         try:
             await d.start_verification(cfg["phone"])
         except Exception as e:
+            status = getattr(e, "status", None)
+            if status == 429:
+                sys.exit("Too many codes were requested for this number. Wait about 10 minutes and run setup again.")
+            if status == 400:
+                sys.exit(f"The directory didn't accept {cfg['phone']}. Check the number, including the country code.")
+            if hosted:
+                sys.exit(f"Couldn't reach the directory at {cfg['directory']} ({e}). Check your internet connection and try again.")
             sys.exit(f"Couldn't reach the directory at {cfg['directory']} ({e}). Is Redtooth running on that computer, and are you on the same network?")
-        print("A verification code was sent. It appears in Redtooth on the computer that hosts the directory.")
-        code = args.code or input("Verification code: ").strip()
-        cfg["token"] = await d.verify(cfg["phone"], code, cfg["name"])
+        print(f"We texted a code to {cfg['phone']}." if hosted else "A verification code was sent. It appears in Redtooth on the computer that hosts the directory.")
+        for attempt in range(3):
+            code = (args.code if attempt == 0 and args.code else input("Verification code: ")).strip()
+            try:
+                cfg["token"] = await d.verify(cfg["phone"], code, cfg["name"])
+                break
+            except Exception as e:
+                if getattr(e, "status", None) == 429:
+                    sys.exit("Too many wrong codes. Wait about 10 minutes and run setup again.")
+                print("That code didn't work." + (" Try again." if attempt < 2 else ""))
+        else:
+            sys.exit("Setup wasn't finished. Run it again to get a new code.")
     cfg.pop("contacts", None)  # an old setup could point at a file that no longer exists
     save_config(cfg)
     print(f"\nRegistered {cfg['name']} ({cfg['phone']}). Numbers without a country code are read as {BY_ISO[country].name} (+{BY_ISO[country].cc}).")

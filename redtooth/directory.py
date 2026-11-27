@@ -18,6 +18,14 @@ from pathlib import Path
 from typing import Awaitable, Callable, Optional, Protocol
 
 from .models import Device, Profile
+
+# The shared directory everyone uses by default (setup offers it; Enter accepts). Set after deploying it, e.g.
+# "https://redtooth-directory.onrender.com". REDTOOTH_DIRECTORY overrides it.
+PUBLIC_DIRECTORY = ""
+
+
+def public_directory() -> str:
+    return (os.environ.get("REDTOOTH_DIRECTORY") or PUBLIC_DIRECTORY).strip().rstrip("/")
 from .util import new_id, normalize_phone, phone_hash
 
 log = logging.getLogger("redtooth.directory")
@@ -191,7 +199,60 @@ class HTTPDirectory:
         return (await self._req("GET", "/v1/me/inbox"))["messages"]
 
 
-def directory_routes(state: InMemoryDirectory, allow_open_register: bool = False):
+class TwilioVerify:
+    """Texts verification codes with Twilio Verify (it makes, sends, expires and checks the code).
+
+    Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SID (the Verify service, "VA…")."""
+
+    BASE = "https://verify.twilio.com/v2/Services"
+
+    def __init__(self, account_sid: str, auth_token: str, service_sid: str) -> None:
+        self.auth = (account_sid, auth_token)
+        self.service = service_sid
+
+    @classmethod
+    def from_env(cls) -> Optional["TwilioVerify"]:
+        sid, tok, svc = (os.environ.get(k, "").strip() for k in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_VERIFY_SID"))
+        return cls(sid, tok, svc) if sid and tok and svc else None
+
+    async def _post(self, path: str, data: dict) -> dict:
+        import aiohttp
+
+        async with aiohttp.ClientSession(auth=aiohttp.BasicAuth(*self.auth), timeout=aiohttp.ClientTimeout(total=15)) as s:
+            async with s.post(f"{self.BASE}/{self.service}/{path}", data=data) as r:
+                body = await r.json(content_type=None)
+                if r.status >= 400:
+                    raise RuntimeError(f"Twilio {r.status}: {body.get('message', body)}")
+                return body
+
+    async def start(self, phone: str) -> None:
+        await self._post("Verifications", {"To": phone, "Channel": "sms"})
+
+    async def check(self, phone: str, code: str) -> bool:
+        try:
+            return (await self._post("VerificationCheck", {"To": phone, "Code": code})).get("status") == "approved"
+        except RuntimeError as e:  # 404 = expired or already used
+            log.info("verification check failed: %s", e)
+            return False
+
+
+class RateLimit:
+    """At most `n` events per key in `window` seconds (in memory; fine for one directory instance)."""
+
+    def __init__(self, n: int, window: float) -> None:
+        self.n, self.window, self.hits = n, window, {}
+
+    def allow(self, key: str) -> bool:
+        now = time.time()
+        recent = [t for t in self.hits.get(key, []) if now - t < self.window]
+        if len(recent) >= self.n:
+            self.hits[key] = recent
+            return False
+        self.hits[key] = recent + [now]
+        return True
+
+
+def directory_routes(state: InMemoryDirectory, allow_open_register: bool = False, verifier: Optional[TwilioVerify] = None):
     """aiohttp routes that host the directory."""
     from aiohttp import web
 
@@ -208,16 +269,40 @@ def directory_routes(state: InMemoryDirectory, allow_open_register: bool = False
     async def health(request):
         return web.json_response({"ok": True})
 
+    # Each code we text costs money, and an open endpoint can be used to spam numbers: limit per number and per address.
+    per_phone, per_ip, checks = RateLimit(3, 600), RateLimit(10, 3600), RateLimit(8, 600)
+
+    def client_ip(request) -> str:
+        return (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote or "?")
+
     @routes.post("/v1/verify/start")
     async def _start(request):
         body = await request.json()
-        state.start_verification(body["phone"])
+        phone = normalize_phone(body["phone"])
+        if not phone.startswith("+") or len(phone) < 8:
+            raise web.HTTPBadRequest(text="phone number needs a country code")
+        if not per_phone.allow(phone) or not per_ip.allow(client_ip(request)):
+            raise web.HTTPTooManyRequests(text="too many codes requested; try again in a few minutes")
+        if verifier:
+            try:
+                await verifier.start(phone)
+            except RuntimeError as e:
+                log.warning("couldn't text %s: %s", phone, e)
+                raise web.HTTPBadGateway(text="couldn't send the text message")
+        else:
+            state.start_verification(phone)
         return web.json_response({"ok": True})
 
     @routes.post("/v1/verify/finish")
     async def _finish(request):
         body = await request.json()
-        tok = state.verify(body["phone"], body["code"], body.get("name", ""))
+        phone = normalize_phone(body["phone"])
+        if not checks.allow(phone):
+            raise web.HTTPTooManyRequests(text="too many tries; request a new code in a few minutes")
+        if verifier:
+            tok = state._issue(phone, body.get("name", "")) if await verifier.check(phone, str(body["code"]).strip()) else None
+        else:
+            tok = state.verify(phone, body["code"], body.get("name", ""))
         if not tok:
             raise web.HTTPForbidden(text="bad code")
         return web.json_response({"token": tok})

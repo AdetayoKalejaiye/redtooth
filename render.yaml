@@ -9,6 +9,13 @@ services:
     buildCommand: pip install .
     startCommand: redtooth directory --host 0.0.0.0 --port $PORT --data /var/data/directory.json
     healthCheckPath: /v1/health
+    envVars:  # Render asks for these when you create the Blueprint (from your Twilio console)
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_VERIFY_SID
+        sync: false
     disk:
       name: redtooth-data
       mountPath: /var/data
