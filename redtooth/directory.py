@@ -21,7 +21,7 @@ from .models import Device, Profile
 
 # The shared directory everyone uses by default (setup offers it; Enter accepts). Set after deploying it, e.g.
 # "https://redtooth-directory.onrender.com". REDTOOTH_DIRECTORY overrides it.
-PUBLIC_DIRECTORY = ""
+PUBLIC_DIRECTORY = "https://redtooth-directory.onrender.com"
 
 
 def public_directory() -> str:
