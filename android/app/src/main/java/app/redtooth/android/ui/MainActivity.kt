@@ -260,6 +260,14 @@ private fun DevicesSheet(s: PanelState, vm: PanelViewModel) {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
+                        Text("Link another device", fontWeight = FontWeight.Medium)
+                        Text(s.linkCode?.let { if (it.all(Char::isDigit)) "Enter $it in setup on your other device (10 minutes)." else it }
+                            ?: "Add your laptop or another phone to your number.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = vm::getLinkCode) { Text("Get code") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
                         Text("Start when the phone starts", fontWeight = FontWeight.Medium)
                         Text("Keeps Redtooth ready to receive files, like the desktop tray app.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -375,7 +383,7 @@ fun Onboarding(vm: PanelViewModel, s: PanelState) {
     var country by remember { mutableStateOf(Graph.settings.country) }
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Redtooth", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text("Friends find your devices by your phone number. We'll text you a code to confirm it's yours.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Friends find your devices by your phone number.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(name, { name = it }, label = { Text("Your name") }, modifier = Modifier.fillMaxWidth())
         CountryPicker(country) { country = it }
         val cc = Phones.byIso[country]?.cc ?: "1"
@@ -384,9 +392,11 @@ fun Onboarding(vm: PanelViewModel, s: PanelState) {
             supportingText = { Text("Contacts saved without a country code are read as ${Phones.byIso[country]?.name ?: country}.") },
             modifier = Modifier.fillMaxWidth())
         OutlinedTextField(dir, { dir = it }, label = { Text("Directory") }, modifier = Modifier.fillMaxWidth(), supportingText = { Text("Your group's Redtooth directory") })
-        if (!s.verificationSent) Button(onClick = { vm.requestCode(name, phone, dir, country) }, enabled = name.isNotBlank() && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Send code") }
+        if (!s.verificationSent) Button(onClick = { vm.requestCode(name, phone, dir, country) }, enabled = name.isNotBlank() && phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Continue") }
         else {
-            OutlinedTextField(code, { code = it }, label = { Text("Code") }, modifier = Modifier.fillMaxWidth())
+            Text(if (s.codeKind == "link") "This number is already set up on another device. There, open Redtooth › Your devices › Link another device (or run `redtooth link` on a computer) and enter the code."
+                 else "We texted a code to your phone.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(code, { code = it }, label = { Text(if (s.codeKind == "link") "Link code" else "Code") }, modifier = Modifier.fillMaxWidth())
             Button(onClick = { vm.verify(code) }, enabled = code.length >= 4, modifier = Modifier.fillMaxWidth()) { Text("Verify") }
         }
         s.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

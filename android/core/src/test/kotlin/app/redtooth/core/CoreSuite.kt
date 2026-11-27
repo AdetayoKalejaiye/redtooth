@@ -420,7 +420,8 @@ object CoreSuite {
         }
         check("Kotlin directory client against the Python directory server") {
             val port = java.net.ServerSocket(0).use { it.localPort }
-            val p = python("-m", "redtooth.cli", "directory", "--host", "127.0.0.1", "--port", port.toString(), "--open-register")
+            val data = File.createTempFile("redtooth-dir", ".json").also { it.delete() }  // fresh: numbers can only be claimed once
+            val p = python("-m", "redtooth.cli", "directory", "--host", "127.0.0.1", "--port", port.toString(), "--open-register", "--data", data.path)
             try {
                 val alex = HttpDirectory("http://127.0.0.1:$port")
                 var up = false
@@ -435,7 +436,13 @@ object CoreSuite {
                 eq(found["+15550142000"]!!.devices[0].endpoints[0].port, 47800)
                 ok(alex.nudge("+15550142000", mapOf("type" to "pairing_mode", "from" to "Alex Rivera")), "nudge")
                 eq(dan.inbox().first()["from"], "Alex Rivera")
-            } finally { p.destroy() }
+                // first claim wins: the same number can't be registered again
+                val again = runCatching { HttpDirectory("http://127.0.0.1:$port").register("+1 555 0100", "Mallory") }
+                eq((again.exceptionOrNull() as? HttpDirectory.DirectoryException)?.code, 409, "taken number refused")
+                // Alex adds a second device with a link code
+                val code = alex.linkCode()
+                ok(HttpDirectory("http://127.0.0.1:$port").verify("+15550100", code, "Alex Rivera").isNotEmpty(), "link code works")
+            } finally { p.destroy(); data.delete() }
         }
     }
 }

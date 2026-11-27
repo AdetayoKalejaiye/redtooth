@@ -42,9 +42,12 @@ class HttpDirectory(baseUrl: String, @Volatile var token: String? = null, privat
     fun verify(phone: String, code: String, name: String): String =
         req("POST", "/v1/verify/finish", mapOf("phone" to phone, "code" to code, "name" to name)).str("token")!!.also { token = it }
 
-    /** Only for directories started with --open-register (testing). */
+    /** Directories without phone verification: first claim wins (409 if the number is taken, 403 if it needs a texted code). */
     fun register(phone: String, name: String): String =
         req("POST", "/v1/register", mapOf("phone" to phone, "name" to name)).str("token")!!.also { token = it }
+
+    /** A one-time code for adding another of your devices (it enters the code where a texted code would go). */
+    fun linkCode(): String = req("POST", "/v1/me/link", emptyMap<String, Any?>()).str("code")!!
 
     override fun setDevices(phone: String, devices: List<Device>) {
         req("PUT", "/v1/me/devices", mapOf("devices" to devices.map { it.toMap() }))

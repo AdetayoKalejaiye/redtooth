@@ -47,6 +47,8 @@ data class PanelState(
     val busy: String? = null,
     val hasFolders: Boolean = false,
     val verificationSent: Boolean = false,
+    val codeKind: String = "sms",     // "sms": we texted a code; "link": the number is taken, enter a link code
+    val linkCode: String? = null,
     val error: String? = null,
 )
 
@@ -165,8 +167,25 @@ class PanelViewModel(app: Application) : AndroidViewModel(app) {
         s.country = country // before the phone number, which is read with it
         s.name = name.trim(); s.phone = phone; s.directoryUrl = directory.trim()
         Graph.init(getApplication()) // rebuild clients with the new settings
-        val r = runCatching { Graph.directory.startVerification(s.phone) }
-        state.update { it.copy(verificationSent = r.isSuccess, error = r.exceptionOrNull()?.message) }
+        // No phone verification on most directories: register straight away (first claim wins).
+        val reg = runCatching { Graph.directory.register(s.phone, s.name) }
+        reg.onSuccess { tok -> s.token = tok; Graph.init(getApplication()); state.update { st -> st.copy(registered = true, error = null) }; start(); return@launch }
+        when ((reg.exceptionOrNull() as? app.redtooth.core.HttpDirectory.DirectoryException)?.code) {
+            409 -> state.update { it.copy(verificationSent = true, codeKind = "link", error = null) }
+            403 -> {
+                val r = runCatching { Graph.directory.startVerification(s.phone) }
+                state.update { it.copy(verificationSent = r.isSuccess, codeKind = "sms", error = r.exceptionOrNull()?.message) }
+            }
+            400 -> state.update { it.copy(error = "Check the number, including the country code.") }
+            429 -> state.update { it.copy(error = "Too many attempts. Try again in a few minutes.") }
+            else -> state.update { it.copy(error = "Couldn't reach the directory (${reg.exceptionOrNull()?.message}).") }
+        }
+    }
+
+    /** Settings › Link another device: a code to enter on your other device. */
+    fun getLinkCode() = viewModelScope.launch(Dispatchers.IO) {
+        val r = runCatching { Graph.directory.linkCode() }
+        state.update { it.copy(linkCode = r.getOrNull() ?: "Couldn't get a code (${r.exceptionOrNull()?.message})") }
     }
 
     fun verify(code: String) = viewModelScope.launch(Dispatchers.IO) {
