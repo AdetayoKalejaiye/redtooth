@@ -257,12 +257,17 @@ struct FoldersView: View {
 
 extension View {
     /// Liquid Glass on iOS 26, material elsewhere.
+    /// (glassEffect exists only in the iOS 26 SDK, so older Xcodes compile just the material.)
     @ViewBuilder func glass(cornerRadius: CGFloat) -> some View {
+        #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
             self.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
         } else {
             self.background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
         }
+        #else
+        self.background(.ultraThinMaterial, in: .rect(cornerRadius: cornerRadius))
+        #endif
     }
 }
 
