@@ -1,0 +1,15 @@
+# Render's free web services sleep after 15 idle minutes and take about a minute to wake, which makes
+# the first request after a quiet spell slow. This pings the directory every 10 minutes so it stays awake
+# (a month of uptime is ~720 hours, inside Render's 750 free hours). Set the repository variable
+# REDTOOTH_DIRECTORY (Settings › Secrets and variables › Actions › Variables) to turn it on.
+name: keep directory awake
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    if: vars.REDTOOTH_DIRECTORY != ''
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS --max-time 90 "${{ vars.REDTOOTH_DIRECTORY }}/v1/health"
