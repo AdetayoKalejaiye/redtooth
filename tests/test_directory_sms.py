@@ -50,3 +50,25 @@ def test_from_env_needs_all_three(monkeypatch):
     assert TwilioVerify.from_env() is None
     monkeypatch.setenv("TWILIO_VERIFY_SID", "VA1")
     assert TwilioVerify.from_env() is not None
+
+
+def test_open_register_first_claim_wins_and_link_codes(tmp_path):
+    async def go():
+        app = web.Application()
+        app.add_routes(directory_routes(InMemoryDirectory(tmp_path / "d.json"), allow_open_register=True))
+        async with TestClient(TestServer(app)) as c:
+            r = await c.post("/v1/register", json={"phone": "+14155550100", "name": "Sam"})
+            assert r.status == 200
+            tok = (await r.json())["token"]
+            # someone else can't take the number
+            r = await c.post("/v1/register", json={"phone": "+1 (415) 555-0100", "name": "Mallory"})
+            assert r.status == 409
+            # Sam adds a second device with a link code from the first
+            assert (await c.post("/v1/me/link")).status == 401
+            code = (await (await c.post("/v1/me/link", headers={"Authorization": f"Bearer {tok}"})).json())["code"]
+            assert (await c.post("/v1/verify/finish", json={"phone": "+14155550100", "code": "000000", "name": "Sam"})).status == 403
+            r = await c.post("/v1/verify/finish", json={"phone": "+14155550100", "code": code, "name": "Sam"})
+            assert r.status == 200 and (await r.json())["token"] != tok
+            # a code works once
+            assert (await c.post("/v1/verify/finish", json={"phone": "+14155550100", "code": code, "name": "Sam"})).status == 403
+    run(go())

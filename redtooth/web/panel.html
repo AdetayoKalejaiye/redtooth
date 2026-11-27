@@ -283,6 +283,8 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
         <h2>Redtooth</h2>
         <div class="toggle" style="border-top:0"><span>Start when I sign in</span><button class="sw" id="autostartSw" aria-label="Start when I sign in"></button></div>
         <div class="toggle"><span>Bluetooth check</span><button class="pill" id="doctorBtn">Run</button></div>
+        <div class="toggle"><span>Link another device</span><button class="pill" id="linkBtn">Get code</button></div>
+        <p class="note" id="linkOut" hidden></p>
         <pre class="note" id="doctorOut" style="white-space:pre-wrap;font:11px ui-monospace,Consolas,monospace;max-height:220px;overflow:auto" hidden></pre>
         <details class="speed"><summary>Speed details</summary>
           <div class="metrics" id="metrics" style="margin-top:8px"><span class="empty" style="grid-column:1/-1;padding:4px 0">Nothing measured yet</span></div>
@@ -579,6 +581,12 @@ $('#autostartSw').onclick = async () => { const on = !$('#autostartSw').classLis
 $('#doctorBtn').onclick = async () => {
   const out = $('#doctorOut'); out.hidden = false; out.textContent = 'Checking Bluetooth and audio (about 10 seconds)…';
   try { const r = await api.post('/api/doctor'); out.textContent = r.text; } catch (e) { out.textContent = String(e); }
+};
+
+$('#linkBtn').onclick = async () => {
+  const out = $('#linkOut'); out.hidden = false; out.textContent = 'Getting a code…';
+  const r = await api.post('/api/link').catch(e => ({ok:false, error:String(e)}));
+  out.innerHTML = r.ok ? `On your other device, run setup with your number and enter <b style="font-size:16px;letter-spacing:2px">${esc(r.code)}</b>. It works for 10 minutes.` : esc(r.error || 'Something went wrong.');
 };
 
 // ---------------------------------------------------------------- feed

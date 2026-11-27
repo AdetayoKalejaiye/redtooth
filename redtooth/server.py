@@ -138,6 +138,21 @@ def make_app(agent: Agent, broker: Optional[AcceptBroker] = None, demo=None, ext
             desktop.set_autostart(bool(b["autostart"]))
         return web.json_response({"ok": True, "autostart": desktop.autostart_enabled() if desktop.autostart_supported() else False})
 
+    @r.post("/api/link")
+    async def link(request):
+        """A one-time code for adding another of your devices (Settings › Link another device)."""
+        from .directory import HTTPDirectory, InMemoryDirectory
+
+        d = agent.directory
+        try:
+            if isinstance(d, HTTPDirectory):
+                return web.json_response({"ok": True, "code": await d.link_code()})
+            if isinstance(d, InMemoryDirectory) and agent.me.phone:  # this computer hosts the directory
+                return web.json_response({"ok": True, "code": d.link_code(agent.me.phone)})
+            return web.json_response({"ok": False, "error": "This directory doesn't use link codes."})
+        except Exception as e:
+            return web.json_response({"ok": False, "error": f"Couldn't reach the directory ({e})."})
+
     @r.post("/api/doctor")
     async def doctor(request):
         from .cli import format_doctor
