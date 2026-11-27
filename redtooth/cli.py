@@ -283,8 +283,24 @@ async def cmd_directory(args) -> None:
     await runner.setup()
     await web.TCPSite(runner, args.host, args.port).start()
     how = "texted with Twilio Verify" if verifier else "shown in this window (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SID to text them)"
+    if args.open_register:
+        how = "not needed: no phone verification (first claim wins; extra devices join with a link code)"
     print(f"Directory on http://{args.host}:{args.port} · registrations kept in {data}\nVerification codes are {how}.", flush=True)
     await asyncio.Event().wait()
+
+
+async def cmd_link(args) -> None:
+    """Shows a one-time code for adding another of your devices to your number."""
+    from .directory import HTTPDirectory
+
+    cfg = load_config()
+    if not cfg.get("token") or not cfg.get("directory"):
+        sys.exit("This device isn't set up with a shared directory yet. Run: redtooth setup")
+    try:
+        code = await HTTPDirectory(cfg["directory"], cfg["token"]).link_code()
+    except Exception as e:
+        sys.exit(f"Couldn't get a code from {cfg['directory']} ({e}).")
+    print(f"Link code: {code}\nOn your other device, run `redtooth setup` with {cfg['phone']} and enter this code. It works for 10 minutes.")
 
 
 async def cmd_setup(args) -> None:
@@ -346,29 +362,47 @@ async def cmd_setup(args) -> None:
         cfg["directory"] = directory_url.rstrip("/")
         d = HTTPDirectory(cfg["directory"])
         hosted = cfg["directory"].startswith("https://")
+        unreachable = (f"Couldn't reach the directory at {cfg['directory']}. Check your internet connection and try again." if hosted else
+                       f"Couldn't reach the directory at {cfg['directory']}. Is Redtooth running on that computer, and are you on the same network?")
+        mode = "register"
         try:
-            await d.start_verification(cfg["phone"])
+            cfg["token"] = await d.register(cfg["phone"], cfg["name"])
+            mode = "done"
         except Exception as e:
             status = getattr(e, "status", None)
-            if status == 429:
-                sys.exit("Too many codes were requested for this number. Wait about 10 minutes and run setup again.")
-            if status == 400:
+            if status == 409:
+                mode = "link"
+            elif status == 403:
+                mode = "sms"   # this directory confirms numbers with a texted code
+            elif status == 400:
                 sys.exit(f"The directory didn't accept {cfg['phone']}. Check the number, including the country code.")
-            if hosted:
-                sys.exit(f"Couldn't reach the directory at {cfg['directory']} ({e}). Check your internet connection and try again.")
-            sys.exit(f"Couldn't reach the directory at {cfg['directory']} ({e}). Is Redtooth running on that computer, and are you on the same network?")
-        print(f"We texted a code to {cfg['phone']}." if hosted else "A verification code was sent. It appears in Redtooth on the computer that hosts the directory.")
-        for attempt in range(3):
-            code = (args.code if attempt == 0 and args.code else input("Verification code: ")).strip()
+            elif status == 429:
+                sys.exit("Too many attempts from this network. Wait a while and run setup again.")
+            else:
+                sys.exit(f"{unreachable} ({e})")
+        if mode == "link":
+            print(f"\n{cfg['phone']} is already registered. To add this device, open Redtooth on one where it's set up")
+            print("and choose Settings › Link another device (or run `redtooth link` there), then enter the code here.")
+        elif mode == "sms":
             try:
-                cfg["token"] = await d.verify(cfg["phone"], code, cfg["name"])
-                break
+                await d.start_verification(cfg["phone"])
             except Exception as e:
                 if getattr(e, "status", None) == 429:
-                    sys.exit("Too many wrong codes. Wait about 10 minutes and run setup again.")
-                print("That code didn't work." + (" Try again." if attempt < 2 else ""))
-        else:
-            sys.exit("Setup wasn't finished. Run it again to get a new code.")
+                    sys.exit("Too many codes were requested for this number. Wait about 10 minutes and run setup again.")
+                sys.exit(f"{unreachable} ({e})")
+            print(f"We texted a code to {cfg['phone']}." if hosted else "A verification code was sent. It appears in Redtooth on the computer that hosts the directory.")
+        if mode in ("link", "sms"):
+            for attempt in range(3):
+                code = (args.code if attempt == 0 and args.code else input("Code: ")).strip()
+                try:
+                    cfg["token"] = await d.verify(cfg["phone"], code, cfg["name"])
+                    break
+                except Exception as e:
+                    if getattr(e, "status", None) == 429:
+                        sys.exit("Too many wrong codes. Wait about 10 minutes and run setup again.")
+                    print("That code didn't work." + (" Try again." if attempt < 2 else ""))
+            else:
+                sys.exit("Setup wasn't finished. Run it again to get a new code.")
     cfg.pop("contacts", None)  # an old setup could point at a file that no longer exists
     save_config(cfg)
     print(f"\nRegistered {cfg['name']} ({cfg['phone']}). Numbers without a country code are read as {BY_ISO[country].name} (+{BY_ISO[country].cc}).")
@@ -734,6 +768,7 @@ def main(argv=None) -> None:
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
     p = sub.add_parser("stop", help="stop a running Redtooth (including an older version holding the port)")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
+    sub.add_parser("link", help="show a code for adding another of your devices")
     p = sub.add_parser("setup")
     p.add_argument("--name")
     p.add_argument("--phone")
@@ -760,7 +795,7 @@ def main(argv=None) -> None:
     p = sub.add_parser("directory")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8790)
-    p.add_argument("--open-register", action="store_true", help="skip phone verification (testing only)")
+    p.add_argument("--open-register", action="store_true", help="no phone verification: first claim wins, extra devices join with a link code")
     p.add_argument("--data", help="where registrations are kept (default ~/.redtooth/directory.json)")
     p = sub.add_parser("install-integrations", help="add Send with Redtooth to the file menus (done automatically on first serve)")
     p.add_argument("--remove", action="store_true")
@@ -776,6 +811,8 @@ def main(argv=None) -> None:
         cmd_stop(args)
     elif args.cmd == "setup":
         asyncio.run(cmd_setup(args))
+    elif args.cmd == "link":
+        asyncio.run(cmd_link(args))
     elif args.cmd == "directory":
         asyncio.run(cmd_directory(args))
     elif args.cmd == "panel":
