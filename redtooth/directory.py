@@ -40,10 +40,63 @@ class Directory(Protocol):
     async def nudge(self, to_phone: str, payload: dict) -> bool: ...
 
 
+class PostgresStore:
+    """Keeps the directory in Postgres (one JSON row), for hosts whose disk doesn't survive restarts
+    (Render's free web services). Writes happen on a background thread, latest snapshot wins, so a
+    database waking from sleep never slows a request."""
+
+    def __init__(self, url: str) -> None:
+        import threading
+
+        import psycopg  # pip install "redtooth[server]"
+
+        self._psycopg, self.url = psycopg, url
+        with psycopg.connect(url, autocommit=True) as c:
+            c.execute("CREATE TABLE IF NOT EXISTS redtooth_directory (id int PRIMARY KEY, data jsonb NOT NULL, saved_at timestamptz DEFAULT now())")
+        self._pending, self._cv = None, threading.Condition()
+        threading.Thread(target=self._writer, daemon=True, name="directory-writer").start()
+
+    def load(self) -> Optional[dict]:
+        with self._psycopg.connect(self.url) as c:
+            row = c.execute("SELECT data FROM redtooth_directory WHERE id = 1").fetchone()
+        return row[0] if row else None
+
+    def save(self, data: dict) -> None:
+        with self._cv:
+            self._pending = json.dumps(data)
+            self._cv.notify()
+
+    def _writer(self) -> None:
+        while True:
+            with self._cv:
+                while self._pending is None:
+                    self._cv.wait()
+                blob, self._pending = self._pending, None
+            for attempt in range(5):
+                try:
+                    with self._psycopg.connect(self.url, autocommit=True) as c:
+                        c.execute("INSERT INTO redtooth_directory (id, data, saved_at) VALUES (1, %s::jsonb, now()) "
+                                  "ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, saved_at = now()", (blob,))
+                    break
+                except Exception as e:  # database asleep or briefly unreachable: retry, keep the newest snapshot
+                    log.warning("couldn't save the directory (%s); retrying", e)
+                    time.sleep(2 ** attempt)
+
+    def flush(self, timeout: float = 10) -> None:
+        """Waits until the latest snapshot is written (tests, shutdown)."""
+        end = time.time() + timeout
+        while time.time() < end:
+            with self._cv:
+                if self._pending is None:
+                    break
+            time.sleep(.05)
+        time.sleep(.3)
+
+
 class InMemoryDirectory:
     """Directory state. Used directly in tests/demo and behind the HTTP API."""
 
-    def __init__(self, path: Optional[str | Path] = None) -> None:
+    def __init__(self, path: Optional[str | Path] = None, store: Optional["PostgresStore"] = None) -> None:
         self.profiles: dict[str, Profile] = {}  # by phone hash
         self.tokens: dict[str, str] = {}  # token -> phone
         self.pending_codes: dict[str, tuple[str, float]] = {}
@@ -52,6 +105,12 @@ class InMemoryDirectory:
         self.code_sink: Optional[Callable[[str, str], None]] = None  # where verification codes go (no SMS yet)
         # With a path, registrations survive restarts (no need to set up every device again).
         self.path = Path(path) if path else None
+        self.store = store
+        if store is not None:
+            try:
+                self._restore(store.load() or {})
+            except Exception as e:
+                raise SystemExit(f"Couldn't read the directory from the database: {e}")
         if self.path and self.path.exists():
             try:
                 data = json.loads(self.path.read_text(encoding="utf-8"))
@@ -61,7 +120,18 @@ class InMemoryDirectory:
             except Exception as e:
                 log.warning("couldn't read %s (%s); starting empty", self.path, e)
 
+    def _snapshot(self) -> dict:
+        return {"profiles": {h: p.to_dict() for h, p in self.profiles.items()}, "tokens": self.tokens, "inboxes": self.inboxes}
+
+    def _restore(self, data: dict) -> None:
+        self.profiles = {h: Profile.from_dict(p) for h, p in data.get("profiles", {}).items()}
+        self.tokens = dict(data.get("tokens", {}))
+        self.inboxes = {h: list(v) for h, v in data.get("inboxes", {}).items()}
+
     def _save(self) -> None:
+        if self.store is not None:
+            self.store.save(self._snapshot())
+            return
         if not self.path:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,15 +241,16 @@ class HTTPDirectory:
     """Client for a directory hosted with `redtooth directory` (or by any
     `redtooth serve --host-directory` instance)."""
 
-    def __init__(self, base_url: str, token: Optional[str] = None):
+    def __init__(self, base_url: str, token: Optional[str] = None, timeout: float = 20):
         self.base = base_url.rstrip("/")
         self.token = token
+        self.timeout = timeout  # a free host that's asleep takes up to a minute to answer the first request
 
     async def _req(self, method: str, path: str, json=None):
         import aiohttp
 
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as s:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as s:
             async with s.request(method, self.base + path, json=json, headers=headers) as r:
                 r.raise_for_status()
                 return await r.json()

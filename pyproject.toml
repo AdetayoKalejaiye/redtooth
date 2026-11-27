@@ -37,6 +37,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-asyncio"]
+# For hosting the shared directory with its data in Postgres (DATABASE_URL), e.g. Render free + Neon.
+server = ["psycopg[binary]>=3.2"]
 # Kept so older install commands still work; everything is in the base install now.
 windows = []
 phone = []

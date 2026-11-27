@@ -278,14 +278,21 @@ async def cmd_directory(args) -> None:
     app = web.Application()
     data = Path(args.data).expanduser() if args.data else HOME / "directory.json"
     verifier = TwilioVerify.from_env()
-    app.add_routes(directory_routes(InMemoryDirectory(data), allow_open_register=args.open_register, verifier=verifier))
+    db_url = os.environ.get("DATABASE_URL", "").strip()
+    if db_url:  # hosts without a lasting disk (Render free): keep registrations in Postgres
+        from .directory import PostgresStore
+
+        state, where = InMemoryDirectory(store=PostgresStore(db_url)), "Postgres (DATABASE_URL)"
+    else:
+        state, where = InMemoryDirectory(data), str(data)
+    app.add_routes(directory_routes(state, allow_open_register=args.open_register, verifier=verifier))
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, args.host, args.port).start()
     how = "texted with Twilio Verify" if verifier else "shown in this window (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SID to text them)"
     if args.open_register:
         how = "not needed: no phone verification (first claim wins; extra devices join with a link code)"
-    print(f"Directory on http://{args.host}:{args.port} · registrations kept in {data}\nVerification codes are {how}.", flush=True)
+    print(f"Directory on http://{args.host}:{args.port} · registrations kept in {where}\nVerification codes are {how}.", flush=True)
     await asyncio.Event().wait()
 
 
@@ -360,8 +367,10 @@ async def cmd_setup(args) -> None:
     else:
         cfg["host_directory"] = False
         cfg["directory"] = directory_url.rstrip("/")
-        d = HTTPDirectory(cfg["directory"])
         hosted = cfg["directory"].startswith("https://")
+        d = HTTPDirectory(cfg["directory"], timeout=90 if hosted else 10)
+        if hosted:
+            print("Contacting the directory (if it's been idle it can take up to a minute to wake up)…", flush=True)
         unreachable = (f"Couldn't reach the directory at {cfg['directory']}. Check your internet connection and try again." if hosted else
                        f"Couldn't reach the directory at {cfg['directory']}. Is Redtooth running on that computer, and are you on the same network?")
         mode = "register"

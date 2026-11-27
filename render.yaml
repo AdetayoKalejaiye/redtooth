@@ -1,24 +1,18 @@
-# The shared Redtooth directory on Render (Dashboard › New › Blueprint, pick this repo).
-# Starter plan + a disk: registrations survive restarts. (A Free web service has no disk, so everyone would
-# have to verify again after every restart or deploy.)
+# The shared Redtooth directory on Render's free plan (no card): New › Blueprint, pick this repo.
+# A free web service loses its disk on every restart, so registrations live in Postgres:
+# make a free database at neon.tech (no card) and paste its connection string as DATABASE_URL.
+# No phone verification for now: first claim wins, extra devices join with a link code.
+# (To text codes later: drop --open-register and add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SID.)
 services:
   - type: web
     name: redtooth-directory
     runtime: python
-    plan: starter
-    buildCommand: pip install .
-    # No phone verification for now: first claim wins, extra devices join with a link code.
-    # To text codes instead: drop --open-register and set the TWILIO_* variables below.
-    startCommand: redtooth directory --host 0.0.0.0 --port $PORT --data /var/data/directory.json --open-register
+    plan: free
+    buildCommand: pip install ".[server]"
+    startCommand: redtooth directory --host 0.0.0.0 --port $PORT --open-register
     healthCheckPath: /v1/health
-    # envVars:  # for texted codes later (from your Twilio console)
-    #   - key: TWILIO_ACCOUNT_SID
-    #     sync: false
-    #   - key: TWILIO_AUTH_TOKEN
-    #     sync: false
-    #   - key: TWILIO_VERIFY_SID
-    #     sync: false
-    disk:
-      name: redtooth-data
-      mountPath: /var/data
-      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.12.8"
