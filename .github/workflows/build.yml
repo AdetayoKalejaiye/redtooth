@@ -23,7 +23,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install . pytest pyinstaller
+          pip install ".[dev]" pyinstaller
       - name: Tests
         run: python -m pytest -q
       - name: App icon
@@ -97,6 +97,16 @@ jobs:
       - name: Compile the iOS app (simulator, unsigned)
         working-directory: ios
         run: |
-          set -o pipefail
+          set +e
           xcodebuild -project Redtooth.xcodeproj -scheme Redtooth -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -40
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build > build.log 2>&1
+          status=$?
+          echo "---- errors ----"
+          grep -E ": error:" -A4 build.log | head -200
+          echo "---- end ($status) ----"
+          exit $status
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-build-log
+          path: ios/build.log
