@@ -171,4 +171,6 @@ What's verified: Python tests (79), the Kotlin core suite (23 checks, including 
 
 ## Security notes
 
+**Phone numbers aren't verified yet.** The shared directory lets the first person who registers a number keep it: nobody can register it again, and your other devices join with a link code (`redtooth link`, or Settings › Link another device). Until texted codes are turned on, someone could register your number before you do, so set Redtooth up early. A directory can text codes instead with Twilio Verify (see `render.yaml`).
+
 The local API binds to 127.0.0.1 and requires an `X-Redtooth: 1` header on every POST, so websites can't drive it. Contact discovery sends SHA-256 hashes of phone numbers. Incoming files always need acceptance unless they come from your own number. Received names are sanitized, and partial files stay in a hidden folder until they verify.
