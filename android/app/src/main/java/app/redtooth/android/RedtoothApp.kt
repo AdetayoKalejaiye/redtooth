@@ -1,5 +1,6 @@
 package app.redtooth.android
 
+import app.redtooth.core.UsageStore
 import android.app.Application
 import android.content.Context
 import android.os.Build
@@ -138,7 +139,7 @@ object Graph {
             }
         })
         a.routeFallback = { d -> aware.endpointFor(d.id) }
-        a.usage = app.redtooth.core.UsageStore(java.io.File(app.filesDir, "usage.json"))
+        a.usage = UsageStore(java.io.File(app.filesDir, "usage.json"))
         files.usage = a.usage
         a.thisDeviceId = settings.deviceId
         refreshMine(a)
