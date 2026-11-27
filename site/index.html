@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redtooth: agentic Bluetooth</title>
+<meta name="description" content="Ask for what you want. “Connect to Sam’s speaker.” “Send Daniel the deck I edited this morning.” Redtooth finds the person, the device and the file.">
+<meta property="og:title" content="Redtooth: agentic Bluetooth">
+<meta property="og:description" content="Ask for what you want. Redtooth finds the person, the device and the file.">
+<meta property="og:image" content="https://adetayokalejaiye.github.io/redtooth/og.jpg">
+<meta property="og:url" content="https://adetayokalejaiye.github.io/redtooth/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://adetayokalejaiye.github.io/redtooth/og.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e0322b'/%3E%3Cpath d='M18 51V13l11 9.5L18 32l11 9.5L18 51zM46 51V13l-11 9.5L46 32l-11 9.5L46 51z' fill='none' stroke='white' stroke-width='5.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0b10; --bg2:#121219; --line:rgba(255,255,255,.1); --text:#f4f4f6; --muted:#a8a8b3;
+  --red:#ff5148; --red-deep:#e0322b; --green:#3ccf6e; --radius:22px;
+  --max:1120px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;line-height:1.55}
+a{color:var(--text)}
+a:hover{color:#fff}
+:focus-visible{outline:3px solid var(--red);outline-offset:3px;border-radius:8px}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 24px}
+.glow{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
+
+/* header */
+header{position:sticky;top:0;z-index:20;background:rgba(11,11,16,.72);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.nav{display:flex;align-items:center;gap:28px;height:68px}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;font-weight:800;font-size:20px;letter-spacing:-.4px}
+.brand svg{width:34px;height:34px}
+.nav nav{display:flex;gap:24px;margin-left:auto;font-size:15px}
+.nav nav a{color:var(--muted);text-decoration:none}
+.nav nav a:hover{color:var(--text)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 22px;border-radius:999px;font-weight:650;font-size:16px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn svg{width:20px;height:20px}
+.btn-red{background:var(--red-deep);color:#fff}
+.btn-red:hover{background:#f03a32;color:#fff}
+.btn-ghost{background:rgba(255,255,255,.06);border-color:var(--line);color:var(--text)}
+.btn-ghost:hover{background:rgba(255,255,255,.1)}
+.nav .btn{min-height:40px;padding:0 16px;font-size:14px}
+
+/* hero */
+.hero{position:relative;overflow:hidden;padding:96px 0 40px}
+.hero .glow.a{width:760px;height:760px;background:#e5342f;opacity:.34;top:-320px;right:-160px}
+.hero .glow.b{width:620px;height:620px;background:#5b3df5;opacity:.16;bottom:-360px;left:-200px}
+.hero .wrap{position:relative;z-index:1;text-align:center}
+.hero:after{content:"";position:absolute;left:0;right:0;bottom:0;height:220px;background:linear-gradient(180deg,rgba(11,11,16,0),var(--bg));z-index:0;pointer-events:none}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--red)}
+h1{font-size:clamp(44px,7.5vw,96px);line-height:1.02;letter-spacing:-.045em;margin:18px auto 0;font-weight:800;max-width:900px}
+.lede{font-size:clamp(18px,2.2vw,22px);color:var(--muted);max-width:720px;margin:24px auto 0}
+.lede q{color:var(--text);quotes:"“" "”"}
+.cta{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:36px}
+.fine{margin-top:14px;font-size:14px;color:var(--muted)}
+
+/* video */
+.video{position:relative;margin:56px auto 0;max-width:1000px;border-radius:26px;overflow:hidden;border:1px solid var(--line);box-shadow:0 40px 120px rgba(0,0,0,.6);background:#000;aspect-ratio:16/9}
+.video video{width:100%;height:100%;display:block}
+
+/* sections */
+section{padding:88px 0}
+.kicker{font-size:14px;font-weight:650;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin:0 0 12px}
+h2{font-size:clamp(32px,4.4vw,52px);line-height:1.08;letter-spacing:-.035em;margin:0;font-weight:800;max-width:760px}
+.sub{color:var(--muted);font-size:18px;max-width:640px;margin:16px 0 0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:44px}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+.card h3{font-size:22px;letter-spacing:-.4px;margin:0 0 10px}
+.card p{color:var(--muted);margin:0}
+.ask{display:inline-block;margin-bottom:18px;background:var(--red-deep);color:#fff;font-weight:600;font-size:15px;padding:10px 16px;border-radius:18px 18px 6px 18px}
+.reply{display:block;margin-top:16px;padding:12px 16px;border-radius:14px;background:rgba(60,207,110,.1);color:#b9f0cc;font-size:15px;font-weight:550}
+
+/* steps */
+.steps{list-style:none;padding:0;margin:44px 0 0;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;counter-reset:s}
+.steps li{counter-increment:s;padding:26px 0 0;border-top:1px solid var(--line)}
+.steps li:before{content:counter(s);display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:rgba(255,81,72,.14);color:var(--red);font-weight:800;margin-bottom:16px}
+.steps h3{margin:0 0 8px;font-size:20px;letter-spacing:-.3px}
+.steps p{margin:0;color:var(--muted)}
+
+/* downloads */
+.dl{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;margin-top:44px}
+.card{min-width:0}
+.dl .card.main{grid-row:span 2;display:flex;flex-direction:column;gap:18px;background:linear-gradient(180deg,#1a1116,#121219)}
+.os{display:flex;align-items:center;gap:12px;font-weight:750;font-size:20px;letter-spacing:-.3px}
+.os svg{width:26px;height:26px;color:var(--muted)}
+.tag{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--muted)}
+.tag.beta{background:rgba(255,81,72,.16);color:#ff8a83}
+.note{font-size:14px;color:var(--muted);margin:0}
+.note b{color:var(--text);font-weight:600}
+.cmd{display:flex;align-items:center;gap:8px;min-width:0;background:#08080c;border:1px solid var(--line);border-radius:12px;padding:6px 6px 6px 14px;margin-top:12px}
+.cmd code{flex:1;min-width:0;font-family:ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;font-size:13.5px;color:#e8e8ee;white-space:nowrap;overflow-x:auto;padding:6px 0}
+.copy{min-height:44px;min-width:64px;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);font:600 13px Inter,system-ui,sans-serif;cursor:pointer}
+.copy:hover{background:rgba(255,255,255,.12)}
+.soon{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
+.soon .card{flex:1;min-width:240px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px}
+
+/* faq */
+.faq{margin-top:36px;border-top:1px solid var(--line)}
+details{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:22px 0;font-size:18px;font-weight:650;letter-spacing:-.2px;min-height:44px}
+summary::-webkit-details-marker{display:none}
+summary:after{content:"+";font-size:26px;font-weight:400;color:var(--muted);transition:transform .2s}
+details[open] summary:after{transform:rotate(45deg)}
+details p{margin:0 0 22px;color:var(--muted);max-width:780px}
+
+footer{border-top:1px solid var(--line);padding:40px 0 56px;color:var(--muted);font-size:14px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between}
+footer nav{display:flex;gap:22px}
+footer a{color:var(--muted)}
+
+@media (max-width:860px){
+  .grid3,.steps{grid-template-columns:1fr}
+  .dl{grid-template-columns:minmax(0,1fr)}
+  .dl .card.main{grid-row:auto}
+  .nav nav a.hide-sm{display:none}
+  .hero{padding-top:64px}
+  section{padding:64px 0}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff5a4e"/><stop offset="1" stop-color="#d42a26"/></linearGradient>
+    <symbol id="mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="url(#rg)"/>
+      <path d="M18 51V13l11 9.5L18 32l11 9.5L18 51zM46 51V13l-11 9.5L46 32l-11 9.5L46 51z" fill="none" stroke="#fff" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-win" viewBox="0 0 24 24"><path d="M3 5.5l7.5-1v7H3zM12 4.3L21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.3z" fill="currentColor"/></symbol>
+    <symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 10l3 2.5L7 15M12.5 15H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 18.5h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top" aria-label="Redtooth home"><svg aria-hidden="true"><use href="#mark"/></svg>Redtooth</a>
+    <nav aria-label="Main">
+      <a class="hide-sm" href="#what">What it does</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <a href="https://github.com/AdetayoKalejaiye/redtooth">GitHub</a>
+    </nav>
+    <a class="btn btn-red" href="#download">Download</a>
+  </div>
+</header>
+
+<main id="top">
+  <div class="hero">
+    <div class="glow a"></div><div class="glow b"></div>
+    <div class="wrap">
+      <div class="eyebrow">Agentic Bluetooth</div>
+      <h1>Ask for what you&nbsp;want.</h1>
+      <p class="lede">Type <q>connect to Sam’s speaker</q> or <q>send Daniel the deck I edited this morning</q>. Redtooth finds the person, the device and the file, and does the rest.</p>
+      <div class="cta">
+        <a class="btn btn-red" id="heroDl" href="https://github.com/AdetayoKalejaiye/redtooth/releases/latest/download/Redtooth-Setup.exe"><svg aria-hidden="true"><use href="#i-dl"/></svg><span id="heroDlText">Download for Windows</span></a>
+        <a class="btn btn-ghost" href="#video"><svg aria-hidden="true"><use href="#i-play"/></svg>Watch the video</a>
+      </div>
+      <p class="fine" id="heroFine">Free · Beta for Windows · macOS and Linux from the command line</p>
+      <div class="video" id="video">
+        <video controls preload="metadata" playsinline poster="poster.jpg">
+          <source src="redtooth-launch.mp4" type="video/mp4">
+          Your browser can’t play this video. <a href="redtooth-launch.mp4">Download it</a> instead.
+        </video>
+      </div>
+    </div>
+  </div>
+
+  <section id="what">
+    <div class="wrap">
+      <p class="kicker">What it does</p>
+      <h2>Bluetooth that understands what you mean.</h2>
+      <p class="sub">Regular Bluetooth makes you speak its language: device names like WH-1000XM5 and file names you have to remember. Redtooth works from what you actually say.</p>
+      <div class="grid3">
+        <div class="card">
+          <span class="ask">connect to Sam’s speaker</span>
+          <h3>Say whose it is.</h3>
+          <p>No asking what it’s called or guessing between two identical names. If Sam uses Redtooth and marked the speaker as theirs, Redtooth knows which one you mean.</p>
+          <span class="reply">✓ Sound is on Sam’s speaker</span>
+        </div>
+        <div class="card">
+          <span class="ask">send Daniel my resume</span>
+          <h3>Say what you mean.</h3>
+          <p>Not the file name. Redtooth searches what’s inside your files, what you’ve opened and sent, and when you edited them, so <i>CV_2026_final (2).pdf</i> is found as “my resume”.</p>
+          <span class="reply">✓ Saved to Daniel’s laptop</span>
+        </div>
+        <div class="card">
+          <span class="ask">the deck I edited this morning</span>
+          <h3>Asks only when it matters.</h3>
+          <p>If two files fit, Redtooth asks the one question that tells them apart, like “the Q4 board update or the sales kickoff?”, and remembers your answer next time.</p>
+          <span class="reply">✓ Q4 Board Update.pptx</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="kicker">How it works</p>
+      <h2>Set up once. Then just ask.</h2>
+      <ol class="steps">
+        <li><h3>Install</h3><p>Redtooth sits in your system tray and opens in your browser. Pair headphones and speakers right from it.</p></li>
+        <li><h3>Add your number</h3><p>Friends who use Redtooth find your devices through your phone number, the same way they already know you.</p></li>
+        <li><h3>Mark your devices</h3><p>Tell Redtooth which headphones, speakers and phone are yours, and the name friends use for them. Then ask for anything.</p></li>
+      </ol>
+      <p class="sub" style="margin-top:32px">Files go straight from your device to theirs over your Wi-Fi network or Bluetooth, never through a server, and the other person always taps Accept first.</p>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap">
+      <p class="kicker">Download</p>
+      <h2>Get Redtooth.</h2>
+      <div class="dl">
+        <div class="card main" id="dlWin">
+          <div class="os"><svg aria-hidden="true"><use href="#i-win"/></svg>Windows <span class="tag beta">Beta</span></div>
+          <p class="note">One installer, about two minutes to set up. Installs for your user only, no admin rights needed.</p>
+          <a class="btn btn-red" href="https://github.com/AdetayoKalejaiye/redtooth/releases/latest/download/Redtooth-Setup.exe"><svg aria-hidden="true"><use href="#i-dl"/></svg>Download Redtooth-Setup.exe</a>
+          <p class="note"><b>Windows will say it protected your PC</b> because the installer isn’t signed yet. Click <b>More info</b>, then <b>Run anyway</b>.</p>
+          <p class="note">Then open Redtooth from the Start menu, enter your name and number, and press Enter to use the shared directory. <a href="https://github.com/AdetayoKalejaiye/redtooth/releases">All releases</a></p>
+        </div>
+        <div class="card" id="dlMac">
+          <div class="os"><svg aria-hidden="true"><use href="#i-term"/></svg>macOS and Linux</div>
+          <p class="note" style="margin-top:10px">From the command line, with Python 3.11 or newer.</p>
+          <div class="cmd"><code>pip install git+https://github.com/AdetayoKalejaiye/redtooth</code><button class="copy" type="button">Copy</button></div>
+          <div class="cmd"><code>redtooth setup &amp;&amp; redtooth start</code><button class="copy" type="button">Copy</button></div>
+          <p class="note" style="margin-top:12px">macOS also needs <code>brew install blueutil switchaudio-osx</code>.</p>
+        </div>
+        <div class="card">
+          <div class="os"><svg aria-hidden="true"><use href="#i-play"/></svg>Just try it</div>
+          <p class="note" style="margin-top:10px">A demo with a pretend Bluetooth radio and a pretend friend. Transfers are real.</p>
+          <div class="cmd"><code>redtooth demo --open</code><button class="copy" type="button">Copy</button></div>
+        </div>
+      </div>
+      <div class="soon">
+        <div class="card"><div class="os"><svg aria-hidden="true"><use href="#i-phone"/></svg>Android</div><span class="tag">In development</span></div>
+        <div class="card"><div class="os"><svg aria-hidden="true"><use href="#i-phone"/></svg>iPhone</div><span class="tag">In development</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <p class="kicker">Questions</p>
+      <h2>Good to know.</h2>
+      <div class="faq">
+        <details><summary>Does the other person need Redtooth?</summary>
+          <p>To connect to their devices by name or send them files, yes: they mark their devices as theirs and accept what you send. Your own Android phone can receive files over Bluetooth without Redtooth. iPhones can’t receive Bluetooth files at all, so use AirDrop for those.</p></details>
+        <details><summary>Do my files go through a server?</summary>
+          <p>No. Files go device to device over your Wi-Fi network or Bluetooth, so you need to be near each other or on the same network. Search runs on your computer too; nothing about your files is uploaded.</p></details>
+        <details><summary>What does Redtooth store about me?</summary>
+          <p>A shared directory keeps your name, your phone number, and the devices you’ve chosen to publish, so friends can find them. It doesn’t store your contacts, your files, or what you send to whom. When Redtooth checks which of your contacts use it, it sends hashes of their numbers, not the numbers. The <a href="https://github.com/AdetayoKalejaiye/redtooth#privacy">privacy section</a> has the details.</p></details>
+        <details><summary>Is my phone number verified?</summary>
+          <p>Not yet. The first person to register a number keeps it, and nobody can register it after that, so set Redtooth up early. Your other computers join with a one-time link code.</p></details>
+        <details><summary>Why does Windows warn me about the installer?</summary>
+          <p>The installer isn’t code-signed yet, which costs money and paperwork that a beta doesn’t have. Click More info, then Run anyway. The code is all on GitHub.</p></details>
+        <details><summary>Is it free?</summary>
+          <p>Yes.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Redtooth home"><svg aria-hidden="true"><use href="#mark"/></svg>Redtooth</a>
+    <nav aria-label="Footer">
+      <a href="https://github.com/AdetayoKalejaiye/redtooth">GitHub</a>
+      <a href="https://github.com/AdetayoKalejaiye/redtooth#privacy">Privacy</a>
+      <a href="https://github.com/AdetayoKalejaiye/redtooth/issues">Report a problem</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+// Copy buttons
+document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', async () => {
+  const text = b.parentElement.querySelector('code').textContent;
+  try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; }
+  catch { b.textContent = 'Select it'; }
+  setTimeout(() => { b.textContent = 'Copy'; }, 1600);
+}));
+// On a Mac or Linux, the main button points at the command-line install instead of the .exe
+const ua = navigator.userAgent;
+if (/Mac|Linux|X11/.test(ua) && !/Windows|Android|iPhone|iPad/.test(ua)) {
+  const a = document.getElementById('heroDl');
+  a.href = '#dlMac';
+  document.getElementById('heroDlText').textContent = /Mac/.test(ua) ? 'Get it for macOS' : 'Get it for Linux';
+  document.getElementById('heroFine').textContent = 'Free · Installs from the command line · Windows installer also available';
+}
+</script>
+</body>
+</html>
