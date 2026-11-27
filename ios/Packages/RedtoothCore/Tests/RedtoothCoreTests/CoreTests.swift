@@ -257,7 +257,7 @@ final class AgentTests: XCTestCase {
         XCTAssertTrue(r2.text.contains("Q4 Board Update.pptx") && r2.text.contains("Pixel"), r2.text)
         let id = try XCTUnwrap(r2.transferId)
         await w.agent.sender.wait(id)
-        XCTAssertEqual(w.agent.sender.transfer(id)?.status, "saved", w.agent.sender.transfer(id)?.error)
+        XCTAssertEqual(w.agent.sender.transfer(id)?.status, "saved", w.agent.sender.transfer(id)?.error ?? "")
     }
 
     func testSendItToHisLaptopInstead() async throws {
