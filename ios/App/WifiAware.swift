@@ -46,7 +46,11 @@ final class WifiAwareLink: @unchecked Sendable {
         let browser = NetworkBrowser(for: .wifiAware(.connecting(to: .allPairedDevices, from: service)))
         let endpoint = try await withTimeout(timeout) {
             try await browser.run { endpoints in
-                if let e = endpoints.first(where: { ($0.device?.name ?? "").localizedCaseInsensitiveContains(device.name) }) ?? endpoints.first {
+                // endpoint.device is never nil; its name (and the name shown at pairing) can be.
+                let named = endpoints.first { e in
+                    [e.device.name, e.device.pairingInfo?.pairingName].contains { ($0 ?? "").localizedCaseInsensitiveContains(device.name) }
+                }
+                if let e = named ?? endpoints.first {
                     return .finish(e)
                 }
                 return .continue
