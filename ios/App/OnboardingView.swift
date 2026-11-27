@@ -8,6 +8,7 @@ struct OnboardingView: View {
     @State private var phone = ""
     @State private var code = ""
     @State private var sent = false
+    @State private var kind: AppModel.CodeKind = .none
     @State private var error: String?
     @State private var server = Shared.directoryURL
     @State private var country = Shared.country
@@ -34,11 +35,15 @@ struct OnboardingView: View {
                     }
                     Text("Contacts saved without a country code are read as \(Phones.byISO[country]?.name ?? country).")
                         .font(.footnote).foregroundStyle(.secondary)
-                    if sent { TextField("Code from the text message", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode) }
+                    if sent && kind == .link {
+                        Text("This number is already set up on another device. There, open Your devices › Link another device (or run `redtooth link` on a computer) and enter the code.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if sent { TextField(kind == .link ? "Link code" : "Code from the text message", text: $code).keyboardType(.numberPad).textContentType(.oneTimeCode) }
                 }
                 if let error { Text(error).foregroundStyle(.red) }
                 Section {
-                    Button(sent ? "Verify" : "Send code") { Task { await next() } }
+                    Button(sent ? "Verify" : "Continue") { Task { await next() } }
                         .disabled(name.isEmpty || phone.count < 7 || (sent && code.count < 4))
                 }
                 Section("Directory server") {
@@ -54,7 +59,10 @@ struct OnboardingView: View {
         error = nil
         model.setDirectory(server)
         do {
-            if !sent { try await model.startVerification(phone: phone, country: country); sent = true }
+            if !sent {
+                kind = try await model.beginSetup(phone: phone, country: country, name: name)
+                sent = kind != .none
+            }
             else { try await model.finishVerification(phone: phone, code: code, name: name) }
         } catch { self.error = "That didn't work: \(error.localizedDescription)" }
     }

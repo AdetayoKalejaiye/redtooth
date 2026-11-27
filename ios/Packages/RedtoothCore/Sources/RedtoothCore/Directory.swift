@@ -47,12 +47,17 @@ public final class HTTPDirectory: Directory, @unchecked Sendable {
         return t
     }
 
-    /// Only for directories started with --open-register (testing).
+    /// Directories without phone verification: first claim wins (HTTPError 409 if the number is taken, 403 if it needs a texted code).
     @discardableResult
     public func register(phone: String, name: String) async throws -> String {
         let t = try await req("POST", "/v1/register", ["phone": phone, "name": name]).str("token") ?? ""
         token = t
         return t
+    }
+
+    /// A one-time code for adding another of your devices.
+    public func linkCode() async throws -> String {
+        try await req("POST", "/v1/me/link", [:]).str("code") ?? ""
     }
 
     public func setDevices(phone: String, devices: [Device]) async throws {

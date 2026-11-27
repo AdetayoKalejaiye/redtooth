@@ -199,9 +199,29 @@ final class AppModel: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: Onboarding
 
-    func startVerification(phone: String, country: String) async throws {
+    enum CodeKind { case none, texted, link }
+
+    /// Registers straight away when the directory allows it (first claim wins). Otherwise says which code to ask for:
+    /// a link code from your other device (number already registered) or a texted code (directories with SMS).
+    func beginSetup(phone: String, country: String, name: String) async throws -> CodeKind {
         Shared.country = country
-        try await directory.startVerification(phone: Phones.normalize(phone))
+        let p = Phones.normalize(phone)
+        do {
+            let token = try await directory.register(phone: p, name: name)
+            Shared.token = token; Shared.myPhone = p; Shared.myName = name
+            onboarded = true
+            await start()
+            return .none
+        } catch let e as HTTPDirectory.HTTPError where e.code == 409 {
+            return .link
+        } catch let e as HTTPDirectory.HTTPError where e.code == 403 {
+            try await directory.startVerification(phone: p)
+            return .texted
+        }
+    }
+
+    func linkCode() async -> String {
+        do { return try await directory.linkCode() } catch { return "Couldn't get a code: \(error.localizedDescription)" }
     }
 
     func finishVerification(phone: String, code: String, name: String) async throws {

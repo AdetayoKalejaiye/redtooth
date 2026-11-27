@@ -306,6 +306,7 @@ struct DevicesRow: View {
 struct YourDevicesView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @State private var linkCode: String?
     @State private var alias = ""
     @State private var kind = "headphones"
 
@@ -328,6 +329,18 @@ struct YourDevicesView: View {
                     }
                     RoutePicker(hint: nil).frame(height: 36)
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("Link another device").fontWeight(.semibold)
+                        Text(linkCode.map { $0.allSatisfy(\.isNumber) ? "Enter \($0) in setup on your other device (10 minutes)." : $0 } ?? "Add your laptop or another phone to your number.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Get code") { Task { linkCode = await model.linkCode() } }.buttonStyle(.bordered)
+                }
+                .padding().background(.bar)
             }
             .navigationTitle("Your devices")
             .toolbar { Button("Done") { dismiss() } }
