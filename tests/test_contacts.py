@@ -46,8 +46,8 @@ def test_missing_contacts_file_is_skipped(tmp_path):
 
 
 def test_find_exports_in_downloads(tmp_path):
-    (tmp_path / "contacts.vcf").write_text(APPLE_VCF)
-    (tmp_path / "budget.csv").write_text("a,b\n1,2\n")
+    (tmp_path / "contacts.vcf").write_text(APPLE_VCF, encoding="utf-8")
+    (tmp_path / "budget.csv").write_text("a,b\n1,2\n", encoding="utf-8")
     found = find_exports([tmp_path])
     assert [(f["name"], f["count"]) for f in found] == [("contacts.vcf", 3)]
 
@@ -78,11 +78,11 @@ async def test_panel_import_and_add_apply_without_restart(tmp_path):
         bad = await (await client.post("/api/contacts/add", json={"name": "X", "phone": "12"}, headers=H)).json()
         assert not bad["ok"]
         p = tmp_path / "google.csv"
-        p.write_text(GOOGLE_CSV)
+        p.write_text(GOOGLE_CSV, encoding="utf-8")
         res = await (await client.post("/api/contacts/import", json={"path": str(p)}, headers=H)).json()
         assert res["ok"] and res["added"] == 0 and res["count"] == 4  # same people, one extra number for Daniel
     finally:
         await client.close()
-    saved = json.loads((tmp_path / "contacts.json").read_text())
+    saved = json.loads((tmp_path / "contacts.json").read_text(encoding="utf-8"))
     assert {c["name"] for c in saved} == {"Daniel Ortiz", "María García", "Priya Shah", "Mom"}
     assert "Daniel" in agent.known_names()
